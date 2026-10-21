@@ -47,6 +47,14 @@ h2:first-child{margin-top:0}
 #short{position:absolute;left:50%;top:10px;-webkit-transform:translateX(-50%);transform:translateX(-50%);background:#e05252;color:#fff;border-radius:8px;padding:6px 12px;font-weight:700;display:none}
 .note{font-size:11px;color:#6f7f94;margin-top:8px;line-height:1.4}
 #menuBtn{display:none}
+#sum{width:240px;-webkit-flex:none;flex:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#1a1f29;border-left:1px solid #262d3a;padding:8px;display:none}
+#main.sumopen #sum{display:block}
+#main.sumopen #info{right:250px}
+.dev{display:inline-block;margin:0 4px 4px 0;padding:5px 7px;border-radius:6px;background:#222a39;color:#7d8a9d;font-weight:700;font-size:12px;border:1px solid #2b3547;cursor:pointer}
+.dev.on{background:#f2d33d;color:#1b1a10;border-color:#f2d33d}
+.dev.sel{outline:2px solid #6fb6ff}
+.wire{display:inline-block;width:36px;margin:0 3px 3px 0;padding:4px 0;border-radius:5px;background:#222a39;color:#5f6b7d;text-align:center;font-weight:700;font-size:12px}
+.wire.on{background:#c8323c;color:#fff}
 /* SVG */
 .lbl{font-size:10.5px;fill:#c8d1de;font-weight:600}
 .wlb{font-size:12px;fill:#8fa2bd;font-weight:700}
@@ -82,6 +90,8 @@ h2:first-child{margin-top:0}
  #quick{display:block!important}
  #bEl,#bAn,#bUI,#zm,#zp{display:none}
  #view2{display:block!important}
+ #sum{position:absolute;right:0;top:0;bottom:0;width:250px;z-index:5;box-shadow:-4px 0 20px rgba(0,0,0,.5)}
+ #main.sumopen #info{right:6px}
 }
 #quick{display:none;-webkit-flex-basis:100%;flex-basis:100%;margin-top:4px}
 #quick .btn{width:9.2%;padding:7px 0;margin-right:.8%;display:inline-block;font-size:12px}
@@ -95,6 +105,7 @@ h2:first-child{margin-top:0}
   <button class="tb" id="menuBtn">☰ Пульт</button>
   <div id="status"></div>
   <div id="grk"></div>
+  <button class="tb" id="bSum">Сводка</button>
   <button class="tb" id="bVM" title="Вольтметр: тапни две точки схемы">Вольтметр</button>
   <button class="tb" id="bEl">Ток: +→−</button>
   <button class="tb" id="bAn">Анимация</button>
@@ -113,6 +124,11 @@ h2:first-child{margin-top:0}
    <div class="note">Тапни по любому элементу схемы: реле — покажу почему оно включено или нет; провод — напряжение и ток; выключатель или кнопку — переключу.<br><br>Цвет провода — потенциал относительно минуса (синий 0 В → красный +28 В). Бегущие точки — ток.<br><br>Учебная модель по расшифровке схемы. Не смоделированы: цепь РУТ-3 (провода 20, 18), лампа ЛС8, контакты РВЗ у пальцев провода 8, силовая цепь. Сверяйся с бумажной схемой.</div>
   </div>
   <div id="view"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  <div id="sum">
+   <h2>Реле и контакторы <span style="text-transform:none;font-weight:400">(нажми — покажу)</span></h2><div id="devs"></div>
+   <h2>Провода под напряжением</h2><div id="wires"></div>
+   <h2>Состояние</h2><div id="sumst" style="font-size:12px;line-height:1.6;color:#b3bfd0"></div>
+  </div>
   <div id="legend">0 В<i></i>28 В</div>
   <div id="vm"></div>
   <div id="short">Короткое замыкание!</div>
@@ -714,13 +730,31 @@ function render(){
  var gi=grkInt(),sp=$("grk").children;for(i=0;i<sp.length;i++){var c2=(FIX[i+1]?"fix":"")+(i+1===gi?" cur":"");if(sp[i].className!==c2)sp[i].className=c2;}
  var st="КВ <b>"+S.kv+"</b> · реверсор <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b> · ГРК <b>"+gi+(onPos()?"":"→"+(gi%17+1))+"</b>"+(S.relay["СД"]&&S.relay["ОВ СД"]?" · <span class='c-ok'>СД крутится</span>":"")+(S.rp?" · <span class='c-no'>РП</span>":"");
  if($("status")._h!==st){$("status")._h=st;$("status").innerHTML=st;}
- paint();
+ paint();renderSum();
 }
 function update(){settle(true);render();refreshInfo();}
 
+/* --- сводка --- */
+var SHOW=["ВПЕРЁД","НАЗАД","РХ","РРТ1","РРТ2","РР","ЛК4","ЛК2","ЛК1","ЛК3","Р","Ш","Ш1","Ш2","КТ1","КТ2","ТБ","Т1","Т2","ВТ1","ВТ2","СД","ОВ СД","РОВ","СР","РТ","КРТ","РВВ2","РВЗ","Возврат РП","ВП (песок)"];
+var WIRES=[["К",70,80],["17",600,80],["31",40,1640],["2",385,150],["3",385,210],["25",385,290],["4",300,380],["5",385,480],["6",385,610],["7",385,665],["19",385,705],["8",385,820],["уз",385,1060],["1",385,1160],["11",385,1300],["12",385,1340],["13",385,1385],["14",480,1520],["9",480,1560],["16",385,1600],["15",260,1690]];
+var DEVN=[],WRN=[];
+(function(){var dv=$("devs"),w=$("wires"),i;
+ for(i=0;i<SHOW.length;i++)(function(n){var b=document.createElement("span");b.className="dev";b.textContent=n==="ВП (песок)"?"ВП (песок)":n;tap(b,function(){SEL=null;SELR=n;curInfo=null;var L=COILS[n];if(L){curInfo=L[0].i;}render();if(L)showInfo(coilInfo(n));});dv.appendChild(b);DEVN.push({n:n,el:b});})(SHOW[i]);
+ for(i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i][0];w.appendChild(x);WRN.push({node:NODES[WIRES[i][1]+","+WIRES[i][2]],el:x});}
+})();
+function renderSum(){
+ if($("main").className.indexOf("sumopen")<0)return;
+ var i,c;
+ for(i=0;i<DEVN.length;i++){c="dev"+(S.relay[DEVN[i].n]?" on":"")+(SELR===DEVN[i].n?" sel":"");if(DEVN[i].el.className!==c)DEVN[i].el.className=c;}
+ for(i=0;i<WRN.length;i++){var nd=WRN[i].node;c="wire"+(nd!==undefined&&!FLO[nd]&&V[nd]>14?" on":"");if(WRN[i].el.className!==c)WRN[i].el.className=c;}
+ var h="Реверсор: <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b><br>ГРК: <b>"+grkInt()+(onPos()?" (на позиции)":" (между позициями)")+"</b><br>СД: "+(S.relay["СД"]&&S.relay["ОВ СД"]?"<span class='c-ok'>крутится</span>":"стоит")+"<br>РН/РН2 (КС): "+(S.env["КС"]?"<span class='c-ok'>вкл</span>":"<span class='c-no'>выкл</span>")+"<br>РП: "+(S.rp?"<span class='c-no'>сработало</span>":"норма")+"<br>Двери (РС): "+(S.env["Двери"]?"<span class='c-no'>открыты</span>":"закрыты");
+ if($("sumst")._h!==h){$("sumst")._h=h;$("sumst").innerHTML=h;}
+}
+function setSum(on){$("main").className=on?"sumopen":"";$("bSum").className="tb"+(on?" on":"");try{localStorage.setItem("lm68m_sum",on?"1":"0");}catch(e){}renderSum();}
+tap($("bSum"),function(){setSum($("main").className.indexOf("sumopen")<0);});
 /* --- кнопки сверху --- */
 tap($("menuBtn"),function(){var s=$("side");s.className=s.className==="open"?"":"open";});
-tap($("view"),function(){var s=$("side");if(s.className==="open")s.className="";});
+tap($("view"),function(){var s=$("side");if(s.className==="open")s.className="";if(window.innerWidth<=760&&$("main").className.indexOf("sumopen")>=0)setSum(false);});
 tap($("bVM"),function(){VM=!VM;VMA=null;this.className="tb"+(VM?" on":"");$("vm").style.display=VM?"block":"none";$("vm").textContent="Вольтметр: тапни первую точку схемы";});
 tap($("bEl"),function(){ELEC=!ELEC;this.textContent=ELEC?"Электроны: −→+":"Ток: +→−";paint();});
 var anim=true;$("bAn").className="tb on";
@@ -765,6 +799,7 @@ if("ongesturestart" in window){
 document.addEventListener("gesturestart",function(e){e.preventDefault();},false);
 
 buildUI();
+(function(){var on=false;try{on=localStorage.getItem("lm68m_sum")==="1";}catch(e){}if(on&&window.innerWidth>760)setSum(true);})();
 Z=1;setZ(fitZ());
 if(view.clientWidth<760)setZ(Math.min(1,fitZ()*2.2),0,0);
 update();
