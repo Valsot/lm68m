@@ -17,7 +17,11 @@ button{font-family:inherit}
 #main{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-height:0;position:relative;display:-webkit-box;display:-webkit-flex;display:flex}
 #side{width:200px;-webkit-flex:none;flex:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#1a1f29;border-right:1px solid #262d3a;padding:8px}
 #view{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0;position:relative;overflow:auto;-webkit-overflow-scrolling:touch;background:#0f1217}
-#svg{display:block;cursor:pointer;-webkit-transform-origin:0 0;transform-origin:0 0}
+svg.sheet{cursor:pointer;-webkit-transform-origin:0 0;transform-origin:0 0}
+#tabs{-webkit-flex-basis:100%;flex-basis:100%;margin-top:4px;white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+#tabs .tab{margin-right:4px}
+.tab .sh{display:none}
+body.notctrl #quick{display:none!important}
 h2{font-size:11px;margin:8px 0 5px;color:#8b98ab;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 h2:first-child{margin-top:0}
 .btn{display:inline-block;border:0;border-radius:7px;background:#2b3547;color:#e9edf3;font-size:13px;font-weight:700;padding:7px 0;margin:0 0 4px;text-align:center;cursor:pointer}
@@ -90,6 +94,8 @@ h2:first-child{margin-top:0}
  #quick{display:block!important}
  #bEl,#bAn,#bUI,#zm,#zp{display:none}
  #view2{display:block!important}
+ .tab .fu{display:none}
+ .tab .sh{display:inline}
  #sum{position:absolute;right:0;top:0;bottom:0;width:250px;z-index:5;box-shadow:-4px 0 20px rgba(0,0,0,.5)}
  #main.sumopen #info{right:6px}
 }
@@ -112,21 +118,22 @@ h2:first-child{margin-top:0}
   <button class="tb" id="bUI">U/I</button>
   <button class="tb" id="zm">−</button><button class="tb" id="zf">⤢</button><button class="tb" id="zp">+</button>
   <div id="quick"></div>
+  <div id="tabs"></div>
  </div>
  <div id="main">
   <div id="side">
-   <h2>Реверсор</h2><div class="grid3" id="rev"></div>
-   <h2>Контроллер</h2><div class="grid5" id="kv"></div>
-   <h2>Выключатели</h2><div id="sw"></div>
-   <h2>Кнопки и педаль</h2><div id="bt"></div>
+   <h2 id="hrev">Реверсор</h2><div class="grid3" id="rev"></div>
+   <h2 id="hkv">Контроллер</h2><div class="grid5" id="kv"></div>
+   <h2 id="hsw">Выключатели</h2><div id="sw"></div>
+   <h2 id="hbt">Кнопки</h2><div id="bt"></div>
    <h2>Обстановка</h2><div id="env"></div>
    <div id="view2"><h2>Вид</h2><div id="vw2"></div></div>
    <div class="note">Тапни по любому элементу схемы: реле — покажу почему оно включено или нет; провод — напряжение и ток; выключатель или кнопку — переключу.<br><br>Цвет провода — потенциал относительно минуса (синий 0 В → красный +28 В). Бегущие точки — ток.<br><br>Учебная модель по расшифровке схемы. Не смоделированы: цепь РУТ-3 (провода 20, 18), лампа ЛС8, контакты РВЗ у пальцев провода 8, силовая цепь. Сверяйся с бумажной схемой.</div>
   </div>
-  <div id="view"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  <div id="view"></div>
   <div id="sum">
-   <h2>Реле и контакторы <span style="text-transform:none;font-weight:400">(нажми — покажу)</span></h2><div id="devs"></div>
-   <h2>Провода под напряжением</h2><div id="wires"></div>
+   <h2>Реле, контакторы, моторы <span style="text-transform:none;font-weight:400">(этого листа)</span></h2><div id="devs"></div>
+   <h2 id="hwires">Провода под напряжением</h2><div id="wires"></div>
    <h2>Состояние</h2><div id="sumst" style="font-size:12px;line-height:1.6;color:#b3bfd0"></div>
   </div>
   <div id="legend">0 В<i></i>28 В</div>
@@ -139,41 +146,51 @@ h2:first-child{margin-top:0}
 (function(){
 "use strict";
 var NS="http://www.w3.org/2000/svg";
-var VW=1400,VH=1830,VS=28;
 var KVPOS=["ТР","Т4","Т3","Т2","Т1","0","М","Х1","Х2","Х3"];
 var KVX={"ТР":228,"Т4":252,"Т3":276,"Т2":300,"Т1":324,"0":365,"М":406,"Х1":430,"Х2":454,"Х3":478};
 var REVX={"Назад":322,"Стоп":365,"Вперёд":408};
-var FIX={1:1,9:1,14:1,17:1};
+var FIXP={1:1,9:1,14:1,17:1};
 var TIMED={"РРТ1":1.5,"РОВ":1.0,"РВВ2":1.0,"РВЗ":1.0};
-var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,
- sw:{"ВУ-1":true,"ВУ-2":true,"ВУ-3":true,"РУМ":true,"В2":true,"ОМ":false},
- bt:{"ПБ":true,"СЕКВ":false,"ВРП":false,"КН7":false,"ПП":false},
+var SWDEF={"ВУ-1":1,"ВУ-2":1,"ВУ-3":1,"РУМ":1,"В2":1,"АВ-2":1,"В34":1,"В35":1,"В27":1,"В28":1,"ВНЦ":1,"В3":1,"В4":1,"В8":1,"В16":1,"В5":1,"В22":1,"В20":1,"ПБ":1};
+var BTDEF={"ПБ":1};
+var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,sw:{},bt:{},
  env:{"КС":true,"Двери":false,"Перегрузка":false},
- rp:false,relay:{},tdrop:{},dio:{}};
+ rp:false,relay:{},tdrop:{},press:4.6,ak:true,flash:false,fl:0};
 
-/* ===================== Геометрия и список элементов ===================== */
-var NODES={},NP=[],EL=[],LBL=[],NLS={};
-function nid(x,y){var k=x+","+y;if(!(k in NODES)){NODES[k]=NP.length;NP.push({x:x,y:y,deg:0});}return NODES[k];}
-var RAW=[];
-function W(){var a=arguments;for(var i=0;i+3<a.length;i+=2)RAW.push({k:"w",x1:a[i],y1:a[i+1],x2:a[i+2],y2:a[i+3]});}
-function add(o,x1,y1,x2,y2){o.x1=x1;o.y1=y1;o.x2=x2;o.y2=y2;RAW.push(o);return o;}
+/* ===================== Листы и построение ===================== */
+var SHEETS=[],SH={},CS=null;
+function sheet(id,title,w,h){CS={id:id,title:title,W:w,H:h,RAW:[],LBL:[],NLS:{},NODES:{},NP:[],EL:[],fx:[],gxy:null};SHEETS.push(CS);SH[id]=CS;}
+function nid(x,y){var k=x+","+y;if(!(k in CS.NODES)){CS.NODES[k]=CS.NP.length;CS.NP.push({x:x,y:y,deg:0});}return CS.NODES[k];}
+function W(){var a=arguments;for(var i=0;i+3<a.length;i+=2)CS.RAW.push({k:"w",x1:a[i],y1:a[i+1],x2:a[i+2],y2:a[i+3]});}
+function add(o,x1,y1,x2,y2){o.x1=x1;o.y1=y1;o.x2=x2;o.y2=y2;CS.RAW.push(o);return o;}
 function K(c,x1,y1,x2,y2,lab){return add({k:"k",c:c,lab:lab},x1,y1,x2,y2);}
-function SW(c,x1,y1,x2,y2,lab){return add({k:"sw",c:c,lab:lab},x1,y1,x2,y2);}
-function BT(c,x1,y1,x2,y2,lab){return add({k:"bt",c:c,lab:lab},x1,y1,x2,y2);}
+function SW(c,x1,y1,x2,y2,lab){var n=c.replace("!","");if(!(n in S.sw))S.sw[n]=!!SWDEF[n];return add({k:"sw",c:c,lab:lab},x1,y1,x2,y2);}
+function BT(c,x1,y1,x2,y2,lab){var n=c.replace("!","");if(!(n in S.bt))S.bt[n]=!!BTDEF[n];return add({k:"bt",c:c,lab:lab},x1,y1,x2,y2);}
 function FU(lab,x1,y1,x2,y2){return add({k:"fu",c:"",lab:lab},x1,y1,x2,y2);}
 function DR(c,y){return add({k:"dr",c:c},345,y,385,y);}
-function CO(n,x1,y1,x2,y2,R,lab){return add({k:"coil",n:n,R:R||200,lab:lab||n},x1,y1,x2,y2);}
-function LA(n,x1,y1,x2,y2){return add({k:"lamp",n:n,R:60,lab:n},x1,y1,x2,y2);}
-function RE(n,R,x1,y1,x2,y2){return add({k:"res",n:n,R:R,lab:n},x1,y1,x2,y2);}
-function MO(n,R,x1,y1,x2,y2){return add({k:"mot",n:n,R:R,lab:""},x1,y1,x2,y2);}
+function CO(n,x1,y1,x2,y2,R,lab,U){return add({k:"coil",n:n,R:R||200,lab:lab||n,U:U||28},x1,y1,x2,y2);}
+function LA(n,x1,y1,x2,y2,R,U){return add({k:"lamp",n:n,R:R||60,lab:n,U:U||28},x1,y1,x2,y2);}
+function RE(n,R,x1,y1,x2,y2,lab,heat){return add({k:"res",n:n,R:R,lab:lab===undefined?n:lab,heat:!!heat},x1,y1,x2,y2);}
+function MO(n,R,x1,y1,x2,y2,o){return add({k:"mot",n:n,R:R,lab:"",Ion:(o&&o.Ion)||0.5,U:28},x1,y1,x2,y2);}
 function DI(n,x1,y1,x2,y2){return add({k:"di",n:n,lab:n},x1,y1,x2,y2);}
-function NL(name,x,y){(NLS[name]=NLS[name]||[]).push([x,y]);}
-function T(t,x,y,cls,data){LBL.push({t:t,x:x,y:y,cls:cls||"lbl",data:data});}
+function BLK(n,x1,y1,x2,y2,R,U){return add({k:"blk",n:n,R:R,lab:"",U:U},x1,y1,x2,y2);}
+function SRC(n,xa,ya,xb,yb,fn,R,sym){return add({k:"src",n:n,E:fn,R:R,sym:sym,lab:n},xa,ya,xb,yb);}
+function VM(n,x1,y1,x2,y2){return add({k:"vm",n:n,R:100000,lab:""},x1,y1,x2,y2);}
+function AM(n,x1,y1,x2,y2){return add({k:"am",n:n,c:"",lab:""},x1,y1,x2,y2);}
+function NL(name,x,y){(CS.NLS[name]=CS.NLS[name]||[]).push([x,y]);}
+function T(t,x,y,cls){CS.LBL.push({t:t,x:x,y:y,cls:cls||"lbl"});}
 function WN(n,y,x){T(n,x||560,y-5,"wlb"+(n==="17"||n==="17ж"?" wlb17":""));}
+function FIX(x,y,fn){CS.fx.push({x:x,y:y,fn:fn});}
+function GNDAT(x,y){CS.gxy=[x,y];}
+function ext(id,x,y){return function(){var sh=SH[id];if(!sh||!sh.V)return null;var n=sh.NODES[x+","+y];if(n===undefined||sh.FLO[n])return null;return sh.V[n];};}
+function LS(names,x0,y,step,U,R,lab){for(var i=0;i<names.length;i++)add({k:"lamp",n:names[i],R:R,lab:"",U:U},x0+i*step,y,x0+(i+1)*step,y);if(lab)T(lab,x0+names.length*step+8,y-8,"lbl");}
+function LP(names,x0,step,y,ym){for(var i=0;i<names.length;i++)LA(names[i],x0+i*step,y,x0+i*step,ym,40,28);W(x0,ym,1340,ym);}
 
+/* ===================== ЛИСТ: Цепи управления ===================== */
+sheet("ctrl","Цепи управления",1420,1830);
 /* --- питание --- */
 W(1370,40, 40,40, 40,1640);                       // провод 31 от +28 В
-W(1290,40, 1290,80);
+W(1370,80,1290,80);
 SW("ВУ-1",1290,80,1240,80,"ВУ-1"); W(1240,80,1200,80);
 FU("Пр2 45А",1200,80,1140,80); W(1140,80,600,80);
 W(600,80,600,1760);                               // шина 17
@@ -184,7 +201,7 @@ FU("Пр30",70,380,120,380); W(120,380,200,380);
 SW("ПБ",200,380,240,380,"ПБ"); W(240,380,260,380); SW("ВУ-3",260,380,300,380,"ВУ-3");
 FU("Пр32",70,1160,120,1160);
 FU("Пр33",70,1255,120,1255); W(120,1255,140,1255); W(140,705,140,1690);
-T("+28 В",1376,44,"wlb wlb17"); T("31",560,35,"wlb"); T("35",1215,74,"wlb"); T("17",590,74,"wlb wlb17");T("К",58,96,"wlb");
+T("31 +",1376,44,"wlb wlb17");T("35 +",1376,84,"wlb wlb17"); T("31",560,35,"wlb");  T("17",590,74,"wlb wlb17");T("К",58,96,"wlb");
 
 /* --- ряд 2, 3: реверсор --- */
 W(180,150,345,150); DR("REV:Вперёд",150); W(385,150,620,150); WN("2",150);
@@ -322,15 +339,154 @@ W(620,1730,660,1730); NL("16",620,1730); BT("!ПП",660,1730,700,1730,"ПП"); W
 W(600,1760,660,1760); BT("ПП",660,1760,700,1760,"ПП"); W(700,1760,880,1760); WN("17",1760,612);
 DI("Д3",880,1760,920,1760); W(920,1760,1060,1760); CO("ВП (песок)",1060,1760,1120,1760,80,"ВП"); W(1120,1760,1330,1760);
 
-var SRC=nid(1370,40),GND=nid(1330,1795);
+FIX(1370,40,ext("lv1",300,160));FIX(1370,80,ext("lv1",420,210));GNDAT(1330,1795);
 
-/* --- разбивка проводов в местах Т-образных соединений --- */
-(function(){
- var i,r,pts=[];
- for(i=0;i<RAW.length;i++){r=RAW[i];nid(r.x1,r.y1);nid(r.x2,r.y2);}
- for(var nm in NLS)for(i=0;i<NLS[nm].length;i++)nid(NLS[nm][i][0],NLS[nm][i][1]);
- for(i=0;i<NP.length;i++)pts.push(NP[i]);
- for(i=0;i<RAW.length;i++){r=RAW[i];
+
+/* ===================== ЛИСТ: ВВ вспомогательные ===================== */
+sheet("hv","ВВ вспомогательные",1420,1000);
+FIX(60,40,function(){return S.env["КС"]?550:null;});
+T("+550 В (контактная сеть)",72,30,"wlb wlb17");
+W(60,40,60,90); SW("АВ-2",60,90,60,140,"АВ-2"); W(60,140,60,900);
+W(1340,150,1340,950); GNDAT(1340,950);
+// освещение салона
+W(60,230,100,230); FU("Пр5 5А",100,230,160,230); W(160,230,190,230); K("КОС",190,230,230,230); W(230,230,300,230);
+W(270,160,270,230); W(270,230,270,265);
+W(270,160,300,160); SW("В34",300,160,340,160); W(340,160,380,160); LS(["Л25","Л26","Л27","Л28","Л29"],380,160,44,110,240,"Л25…Л29 передние софиты"); W(600,160,1340,160);
+W(270,195,300,195); SW("В35",300,195,340,195); W(340,195,380,195); LS(["Л30","Л31","Л32","Л33","Л34"],380,195,44,110,240,"Л30…Л34 задние софиты"); W(600,195,1340,195);
+LS(["Л1","Л2","Л3","Л4","Л5","Л6","Л7","Л8","Л9","Л10","Л11","Л12"],300,230,44,46,100,"Л1…Л12"); W(828,230,1200,230); W(1200,230,1200,265);
+W(270,265,300,265); SW("В27",300,265,340,265); LS(["Л13","Л14","Л15","Л16","Л17","Л18","Л19","Л20","Л21","Л22","Л23","Л24"],340,265,44,46,100,"Л13…Л24");
+W(868,265,1240,265); SW("В28",1240,265,1290,265); W(1290,265,1340,265);
+T("Освещение салона",96,196,"lbl");
+// компрессор
+W(60,330,100,330); FU("Пр6 15А",100,330,160,330); W(160,330,190,330); K("КМК",190,330,230,330); W(230,330,400,330);
+MO("МК",200,400,330,460,330,{Ion:0.5}); W(460,330,520,330); RE("ОВ МК",20,520,330,600,330); W(600,330,700,330); RE("R",30,700,330,780,330); W(780,330,1340,330);
+T("Мотор компрессора",480,365,"lbl");
+// отопление салона
+W(60,440,100,440); FU("Пр8",100,440,160,440); W(160,440,200,440); W(200,400,200,540);
+W(200,400,240,400); K("КО1",240,400,280,400); W(280,400,330,400); W(330,400,330,490);
+W(200,540,240,540); K("КО2",240,540,280,540); W(280,540,330,540); W(330,540,330,630);
+(function(){var ys=[400,430,460,490,540,570,600,630];for(var i=0;i<ys.length;i++){var y=ys[i];if(y!==400&&y!==540)W(330,y,360,y);else W(330,y,360,y);
+ for(var k=0;k<7;k++)RE("ЭП",26,360+k*60,y,420+k*60,y,"",true);W(780,y,1340,y);}})();
+T("Отопление салона (КО1)",370,388,"lbl");T("Отопление салона (КО2)",370,528,"lbl");
+// отопление кабины, стрелка
+W(60,710,100,710); FU("Пр10 15А",100,710,160,710); W(160,710,200,710); W(200,680,200,820);
+(function(){var ys=[680,710,740];for(var i=0;i<3;i++){var y=ys[i];W(200,y,240,y);SW("В32",240,y,280,y,i===0?"В32":"");W(280,y,360,y);RE("ЭПК",180,360,y,780,y,"",true);W(780,y,1340,y);}})();
+T("Отопление кабины",370,668,"lbl");
+W(200,780,240,780); K("КАС1",240,780,280,780); W(280,780,1000,780); CO("КПС",1000,780,1060,780,1100,"КПС",550); W(1060,780,1340,780);
+W(200,820,240,820); K("КАС2",240,820,280,820); W(280,820,1000,820); CO("КЛС",1000,820,1060,820,1100,"КЛС",550); W(1060,820,1340,820);
+T("Перевод автоматической стрелки",370,768,"lbl");
+// БПН
+W(60,900,100,900); FU("Пр12 15А",100,900,160,900); W(160,900,190,900); K("КМГ",190,900,230,900); W(230,900,600,900);
+BLK("БПН",600,900,760,900,275,550); W(760,900,1340,900);
+T("БПН — блок питания низковольтный: 550 В → 28 В. Выход — на листе «НВ: питание»",240,940,"lbl");
+T("(заменяет мотор-генератор)",240,958,"lbl");
+
+/* ===================== ЛИСТ: НВ питание ===================== */
+sheet("lv1","НВ: питание",1420,800);
+SRC("БПН",80,240,80,120,function(){return S.relay["БПН"]?28:null;},0.05,"box");
+W(80,240,80,700); W(80,700,1340,700); W(1340,260,1340,700); GNDAT(1340,700);
+W(80,120,140,120); DI("Д4",140,120,180,120); W(180,120,300,120); W(300,120,300,300);
+W(300,160,560,160); T("31 → цепи управления и НВ",575,164,"wlb wlb17");
+W(300,210,340,210); K("КЦУ",340,210,380,210); W(380,210,420,210); W(420,210,420,400); T("35 →",428,200,"wlb wlb17");
+W(300,260,340,260); FU("Пр13 6А",340,260,400,260); W(400,260,440,260); SW("В3",440,260,480,260,"В3 Батарея"); W(480,260,1000,260);
+CO("КЦУ",1000,260,1060,260); W(1060,260,1340,260);
+SW("ВНЦ",300,300,250,300,"В1 (ВНЦ)"); W(250,300,240,300); AM("А",240,300,200,300); W(200,300,180,300);
+SRC("АБ",180,370,180,300,function(){return 12;},0.1,"bat"); SRC("АБ",180,440,180,370,function(){return 12;},0.1,"bat"); W(180,440,180,700);
+W(180,370,200,370); SW("ВНЦ",200,370,250,370,""); W(250,370,280,370); T("130 (+12 В)",286,374,"wlb");
+T("Аккумуляторная батарея",196,470,"lbl");
+W(420,330,1000,330); VM("V",1000,330,1060,330); W(1060,330,1340,330);
+W(420,400,460,400); FU("Пр14 6А",460,400,520,400); W(520,400,560,400); W(560,400,560,540);
+W(560,400,600,400); SW("В4",600,400,640,400,"В4"); W(640,400,760,400); K("АК",760,400,800,400,"АК (давление)"); W(800,400,1000,400);
+CO("КМК",1000,400,1060,400); W(1060,400,1340,400);
+W(560,470,600,470); SW("В8",600,470,640,470,"В8"); W(640,470,1000,470); CO("КМГ",1000,470,1060,470); W(1060,470,1340,470);
+W(560,540,600,540); K("!БПН",600,540,640,540,"БПН"); W(640,540,1000,540); LA("ЛС2",1000,540,1060,540,120,28); W(1060,540,1340,540);
+T("горит, когда БПН не работает",1100,530,"lbl");
+T("Предположение: БПН подключён вместо генератора (через Д4 на шину 31). Сверь со своей схемой.",80,740,"lbl");
+
+/* ===================== ЛИСТ: НВ потребители ===================== */
+sheet("lv2","НВ: потребители",1420,1760);
+FIX(60,40,ext("lv1",300,160)); FIX(100,40,ext("lv1",420,210));
+T("31",54,30,"wlb wlb17"); T("35",94,30,"wlb wlb17");
+W(60,40,60,1530); W(100,40,100,1480); W(1340,60,1340,1720); GNDAT(1340,1720);
+function FEED(name,y,y2,from31){if(from31){W(60,y,120,y);}else W(100,y,120,y);FU(name,120,y,180,y);W(180,y,260,y);if(y2>y)W(220,y,220,y2);}
+function R0(y){W(220,y,260,y);}
+// Пр15 (49) фары, вентилятор
+FEED("Пр15",60,225); T("49 · фары, вентилятор кабины",330,40,"lbl");
+SW("В17",260,60,300,60,"В17"); W(300,60,600,60); RE("R",10,600,60,680,60); W(680,60,760,60); MO("ВК",30,760,60,820,60,{Ion:0.3}); W(820,60,1340,60);
+R0(100); SW("В47",260,100,300,100,"В47"); W(300,100,600,100); RE("R фар",3,600,100,680,100); W(680,100,760,100); LA("Л39",760,100,820,100,30,28); W(820,100,1340,100);
+W(740,100,740,130,760,130); LA("Л40",760,130,820,130,30,28); W(820,130,1340,130);
+W(580,100,580,155,600,155); BT("Кн6",600,155,680,155,"Кн6"); W(680,155,700,155,700,100);
+R0(190); BT("Кн4",260,190,300,190,"Кн4"); W(300,190,1000,190); CO("КАС1",1000,190,1060,190); W(1060,190,1340,190);
+R0(225); BT("Кн5",260,225,300,225,"Кн5"); W(300,225,1000,225); CO("КАС2",1000,225,1060,225); W(1060,225,1340,225);
+T("контакторы автоматической стрелки",1075,180,"lbl");
+// Пр16 (52) вентили дверей
+FEED("Пр16",275,380); T("52 · вентили дверей",330,262,"lbl");
+SW("В11",260,275,300,275,"В11"); W(300,275,1000,275); CO("ВД1",1000,275,1060,275); W(1060,275,1340,275);
+R0(310); SW("В10",260,310,300,310,"В10"); W(300,310,500,310); SW("В5",500,310,540,310,"В5 Упр.-2"); W(540,310,1000,310); CO("ВД2",1000,310,1060,310); W(1060,310,1340,310);
+R0(345); SW("В30",260,345,300,345,"В30"); W(300,345,1000,345); CO("ВД3",1000,345,1060,345); W(1060,345,1340,345);
+R0(380); BT("Авар",260,380,300,380,"Авар. откр. дверей"); W(300,380,960,380,960,310); W(940,380,940,345);
+// Пр17 (59)
+FEED("Пр17",430,430); W(260,430,1000,430); RE("ЭС",150,1000,430,1080,430,"ЭС спидометр"); W(1080,430,1340,430); T("59 · спидометр, розетка",330,418,"lbl");
+// Пр18 (60) стоп-сигналы
+FEED("Пр18",480,480); T("60 · стоп-сигналы",330,468,"lbl");
+K("Т2",260,480,300,480); W(300,480,880,480);
+W(240,480,240,510,260,510); K("KV:ТР,Т4,Т3,Т2,Т1",260,510,300,510,"КВ7"); W(300,510,320,510,320,480);
+LA("ЛС3",760,480,760,540,120,28); LA("Л37",820,480,820,540,40,28); LA("Л38",880,480,880,540,40,28); W(760,540,1340,540);
+DI("Д5",700,600,700,480); FIX(700,600,ext("ctrl",385,1600)); T("16 (от цепи управления — рельсовый тормоз)",712,612,"lbl");
+// Пр20 (65) освещение салона
+FEED("Пр20",640,675); T("65 · освещение салона",330,628,"lbl");
+SW("В16",260,640,300,640,"В16"); W(300,640,1000,640); CO("КОС",1000,640,1060,640); W(1060,640,1340,640);
+R0(675); SW("В19",260,675,300,675,"В19"); W(300,675,600,675); T("66 →",606,679,"wlb");
+// Пр22 (71) задние фонари
+FEED("Пр22",720,720); W(260,720,880,720); LA("Л60",820,720,820,760,40,28); LA("Л61",880,720,880,760,40,28); W(820,760,1340,760); T("71 · задние фонари",330,708,"lbl");
+// Пр23 (76) сигнализация дверей
+FEED("Пр23",810,890); T("76 · сигнализация дверей",330,798,"lbl");
+K("КВ",260,810,300,810,"КВ1–КВ6"); W(300,810,1000,810); CO("РС",1000,810,1060,810); W(1060,810,1340,810);
+R0(850); SW("В22",260,850,300,850,"В22"); W(300,850,500,850); K("РС",500,850,540,850); W(540,850,1000,850); LA("ЛС4",1000,850,1060,850,120,28); W(1060,850,1340,850);
+T("«Двери открыты»",1100,836,"lbl");
+R0(890); SW("В21",260,890,300,890,"В21"); W(300,890,500,890); K("РС",500,890,540,890); W(540,890,1060,890);
+LP(["Л48","Л49","Л50","Л51","Л52","Л53"],760,60,890,930);
+// Пр24 указатели поворотов
+FEED("Пр24",980,980); T("указатели поворотов (83, 88)",330,968,"lbl");
+K("РСП",260,980,300,980,"РСП"); W(300,980,340,980); W(340,980,340,1100);
+W(340,980,400,980); SW("В46Л",400,980,440,980,"В46 ←"); W(440,980,880,980); LP(["Л54","Л55","Л56"],760,60,980,1015);
+W(340,1040,400,1040); SW("В46П",400,1040,440,1040,"В46 →"); W(440,1040,880,1040); LP(["Л57","Л58","Л59"],760,60,1040,1075);
+W(340,1100,1000,1100); LA("ЛС5",1000,1100,1060,1100,120,28); W(1060,1100,1340,1100);
+// Пр25 (91) аншлаг
+FEED("Пр25",1150,1210); T("91 · аншлаг",330,1138,"lbl");
+SW("В24",260,1150,300,1150,"В24"); W(300,1150,880,1150); LP(["Л63","Л64","Л65"],760,60,1150,1180);
+R0(1210); SW("В29",260,1210,300,1210,"В29"); W(300,1210,820,1210); LP(["Л70","Л71"],760,60,1210,1240);
+// Пр28 (74) аварийное освещение
+FEED("Пр28",1290,1290); T("74 · аварийное освещение",330,1278,"lbl");
+K("!РН",260,1290,300,1290,"РН"); W(300,1290,1000,1290); LA("ЛС7",1000,1290,1060,1290,120,28); W(1060,1290,1340,1290); T("«Напряжение сети»",1100,1276,"lbl");
+W(340,1290,340,1330,400,1330); SW("В20",400,1330,440,1330,"В20"); W(440,1330,1060,1330); LP(["Л41","Л42","Л43","Л44","Л45","Л46"],760,60,1330,1365);
+// Пр29 (101) отопление салона
+FEED("Пр29",1410,1480); T("101 · отопление салона",330,1398,"lbl");
+SW("В6",260,1410,300,1410,"В6"); W(300,1410,1000,1410); CO("КО1",1000,1410,1060,1410); W(1060,1410,1340,1410);
+R0(1445); SW("В9",260,1445,300,1445,"В9"); W(300,1445,1000,1445); CO("КО2",1000,1445,1060,1445); W(1060,1445,1340,1445);
+R0(1480); SW("В36",260,1480,300,1480,"В36"); W(300,1480,1000,1480); RE("обогрев",14,1000,1480,1080,1480,"обогрев"); W(1080,1480,1340,1480);
+// Пр26 (31) освещение камер
+FEED("Пр26",1530,1530,true); W(260,1530,940,1530); T("31 · освещение камер",330,1518,"lbl");
+(function(){var g=[["В26",260,["Л72","Л73"]],["В12",400,["Л74"]],["В13",500,["Л76","Л77","Л78","Л79"]],["В14",740,["Л80","Л81","Л82"]],["В16",940,["Л83","Л84"]]];
+ for(var i=0;i<g.length;i++){var x=g[i][1],L=g[i][2];SW(g[i][0]+"к",x,1530,x,1570,g[i][0]);if(L.length>1)W(x,1570,x+50*(L.length-1),1570);
+  for(var k=0;k<L.length;k++)LA(L[k],x+50*k,1570,x+50*k,1610,40,28);}
+ W(260,1610,1340,1610);})();
+// радио
+FIX(60,1680,ext("lv1",280,370)); T("+12 В (130)",40,1668,"wlb wlb17");
+W(60,1680,260,1680); SW("В2р",260,1680,300,1680,"В2"); W(300,1680,1000,1680); RE("РУ",10,1000,1680,1080,1680,"Радиоустановка"); W(1080,1680,1340,1680);
+T("Упрощено: звонок (61), цепь 62 (ВС, КДС), переключатель рельсового тормоза В23, громкоговорители — пока не нарисованы.",60,1745,"lbl");
+
+/* ===================== Завершение построения листов ===================== */
+function isRes(e){return e.k==="coil"||e.k==="lamp"||e.k==="res"||e.k==="mot"||e.k==="vm"||e.k==="blk";}
+function finalize(sh){
+ CS=sh;var i,r,pts,nm;
+ for(i=0;i<sh.RAW.length;i++){r=sh.RAW[i];nid(r.x1,r.y1);nid(r.x2,r.y2);}
+ for(nm in sh.NLS)for(i=0;i<sh.NLS[nm].length;i++)nid(sh.NLS[nm][i][0],sh.NLS[nm][i][1]);
+ for(i=0;i<sh.fx.length;i++)nid(sh.fx[i].x,sh.fx[i].y);
+ nid(sh.gxy[0],sh.gxy[1]);
+ pts=sh.NP.slice();
+ var EL=sh.EL;
+ for(i=0;i<sh.RAW.length;i++){r=sh.RAW[i];
   if(r.k!=="w"){EL.push(r);continue;}
   var hor=(r.y1===r.y2),inner=[];
   for(var j=0;j<pts.length;j++){var p=pts[j];
@@ -342,13 +498,21 @@ var SRC=nid(1370,40),GND=nid(1330,1795);
   for(j=0;j<inner.length;j++){EL.push({k:"w",x1:cx,y1:cy,x2:inner[j].x,y2:inner[j].y});cx=inner[j].x;cy=inner[j].y;}
   EL.push({k:"w",x1:cx,y1:cy,x2:r.x2,y2:r.y2});
  }
- for(nm in NLS){var L=NLS[nm];for(i=1;i<L.length;i++)EL.push({k:"link",x1:L[0][0],y1:L[0][1],x2:L[i][0],y2:L[i][1]});}
- for(i=0;i<EL.length;i++){var e=EL[i];e.i=i;e.a=nid(e.x1,e.y1);e.b=nid(e.x2,e.y2);
-  if(e.k!=="link"){NP[e.a].deg++;NP[e.b].deg++;}
+ for(nm in sh.NLS){var L=sh.NLS[nm];for(i=1;i<L.length;i++)EL.push({k:"link",x1:L[0][0],y1:L[0][1],x2:L[i][0],y2:L[i][1]});}
+ for(i=0;i<EL.length;i++){var e=EL[i];e.i=i;e.sh=sh;e.a=nid(e.x1,e.y1);e.b=nid(e.x2,e.y2);
+  if(e.k!=="link"){sh.NP[e.a].deg++;sh.NP[e.b].deg++;}
   if(e.k==="coil"&&TIMED[e.n])e.timed=true;
-  if((e.k==="k")&&(e.c==="РОВ"||e.c==="РРТ1"))e.timed=true;}
-})();
-var NN=NP.length;
+  if(e.k==="k"&&(e.c==="РОВ"||e.c==="РРТ1"))e.timed=true;}
+ var N=sh.NP.length;sh.N=N;
+ sh.V=new Float64Array(N);sh.FLO=new Uint8Array(N);for(i=0;i<N;i++)sh.FLO[i]=1;
+ sh.IE=new Float64Array(EL.length);sh.par=new Int32Array(N);sh.dio={};sh.lastSig=null;sh.SHORT=false;
+ for(i=0;i<sh.fx.length;i++)sh.fx[i].n=sh.NODES[sh.fx[i].x+","+sh.fx[i].y];
+ sh.GND=sh.NODES[sh.gxy[0]+","+sh.gxy[1]];
+ sh.ADJ=[];for(i=0;i<N;i++)sh.ADJ.push([]);
+ for(i=0;i<EL.length;i++){e=EL[i];if(isRes(e)||e.k==="src")continue;sh.ADJ[e.a].push(i);sh.ADJ[e.b].push(i);}
+}
+for(var si=0;si<SHEETS.length;si++)finalize(SHEETS[si]);
+var ORDER=["hv","lv1","lv2","ctrl"];
 
 /* ===================== Логика контактов ===================== */
 function inList(list,v){var a=list.split(",");for(var i=0;i<a.length;i++)if(a[i]===v)return true;return false;}
@@ -357,9 +521,11 @@ function grkInt(){return Math.floor(S.grk);}
 function onPos(){return (S.grk-Math.floor(S.grk))<0.3;}
 function relayOn(n){
  if(n==="РН"||n==="РН2")return S.env["КС"];
- if(n==="РС")return S.env["Двери"];
  if(n==="РП")return S.rp;
  if(n==="РУТ"||n==="РМТ")return false;
+ if(n==="АК")return S.ak;
+ if(n==="РСП")return S.flash;
+ if(n==="КВ")return S.env["Двери"];
  return !!S.relay[n];
 }
 function cond(c){
@@ -376,25 +542,22 @@ function cond(c){
  if(S.bt.hasOwnProperty(c))return S.bt[c];
  return relayOn(c);
 }
-function isRes(e){return e.k==="coil"||e.k==="lamp"||e.k==="res"||e.k==="mot";}
+function srcE(e){var v=e.E();return v===null||v===undefined?null:v;}
 function closed(e){
- if(e.k==="w"||e.k==="link"||e.k==="fu")return true;
- if(e.k==="di")return !!S.dio[e.i];
- if(isRes(e))return false;
+ if(e.k==="w"||e.k==="link"||e.k==="fu"||e.k==="am")return true;
+ if(e.k==="di")return !!e.sh.dio[e.i];
+ if(isRes(e)||e.k==="src")return false;
  return cond(e.c);
 }
-function relayOf(e){ // имя реле, к которому относится контакт
- if(e.k==="coil"||e.k==="mot")return e.n;
+function relayOf(e){
+ if(e.k==="coil"||e.k==="mot"||e.k==="blk")return e.n;
  if(e.k!=="k")return null;
  var c=e.c.charAt(0)==="!"?e.c.substr(1):e.c;
- if(c.indexOf("РК")===0||c==="ВП"||c==="НАЗ")return null;
+ if(c.indexOf("РК")===0||c==="ВП"||c==="НАЗ"||c.indexOf("KV:")===0)return null;
  return c;
 }
 
 /* ===================== Расчёт цепи ===================== */
-var V=new Float64Array(NN),FLO=new Uint8Array(NN),IE=new Float64Array(EL.length),SHORT=false;
-var par=new Int32Array(NN);
-function find(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
 function gauss(A,b,n){
  for(var c=0;c<n;c++){
   var p=c,m=Math.abs(A[c*n+c]);
@@ -408,41 +571,49 @@ function gauss(A,b,n){
  for(c=n-1;c>=0;c--){var s=b[c];for(k=c+1;k<n;k++)s-=A[c*n+k]*x[k];x[c]=Math.abs(A[c*n+c])<1e-14?0:s/A[c*n+c];}
  return x;
 }
-function solveCircuit(){
- var i,e,it;
+function solve(sh){
+ var EL=sh.EL,N=sh.N,V=sh.V,FLO=sh.FLO,IE=sh.IE,par=sh.par,i,e,it;
+ function find(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
  for(it=0;it<6;it++){
-  for(i=0;i<NN;i++)par[i]=i;
-  var cl=[];for(i=0;i<EL.length;i++){e=EL[i];cl[i]=closed(e);if(cl[i]&&!isRes(e)){var ra=find(e.a),rb=find(e.b);if(ra!==rb)par[ra]=rb;}}
-  var gs=find(SRC),gg=find(GND);
-  SHORT=(gs===gg);
+  for(i=0;i<N;i++)par[i]=i;
+  var cl=[];
+  for(i=0;i<EL.length;i++){e=EL[i];cl[i]=closed(e);if(cl[i]){var ra=find(e.a),rb=find(e.b);if(ra!==rb)par[ra]=rb;}}
+  var fv={},fr={},short=false,r;
+  for(i=0;i<sh.fx.length;i++){var v=sh.fx[i].fn();if(v===null)continue;r=find(sh.fx[i].n);if((r in fv)&&Math.abs(fv[r]-v)>0.5)short=true;fv[r]=v;fr[r]=sh.fx[i].n;}
+  r=find(sh.GND);if((r in fv)&&Math.abs(fv[r])>0.5)short=true;fv[r]=0;fr[r]=sh.GND;
+  sh.SHORT=short;
   for(i=0;i<EL.length;i++)IE[i]=0;
-  if(SHORT){for(i=0;i<NN;i++){V[i]=0;FLO[i]=1;}return;}
-  // группы
-  var gi={},n=0,roots=[];
-  for(i=0;i<NN;i++){var r=find(i);if(r===gs||r===gg)continue;if(!(r in gi)){gi[r]=n++;roots.push(r);}}
+  if(short){for(i=0;i<N;i++){V[i]=0;FLO[i]=1;}return;}
+  var gi={},n=0;
+  for(i=0;i<N;i++){r=find(i);if(r in fv)continue;if(!(r in gi))gi[r]=n++;}
   var A=new Float64Array(n*n),b=new Float64Array(n);
   for(i=0;i<n;i++)A[i*n+i]=1e-9;
-  for(i=0;i<EL.length;i++){e=EL[i];if(!isRes(e))continue;var g=1/e.R,pa=find(e.a),pb=find(e.b);if(pa===pb)continue;
-   var ia=(pa in gi)?gi[pa]:-1,ib=(pb in gi)?gi[pb]:-1,va=pa===gs?VS:0,vb=pb===gs?VS:0;
-   if(ia>=0){A[ia*n+ia]+=g;if(ib>=0)A[ia*n+ib]-=g;else b[ia]+=g*vb;}
-   if(ib>=0){A[ib*n+ib]+=g;if(ia>=0)A[ib*n+ia]-=g;else b[ib]+=g*va;}}
+  var Es=[];
+  for(i=0;i<EL.length;i++){e=EL[i];var isS=e.k==="src";if(!isRes(e)&&!isS)continue;
+   var E=0;if(isS){E=srcE(e);Es[i]=E;if(E===null)continue;}
+   var g=1/e.R,pa=find(e.a),pb=find(e.b);if(pa===pb)continue;
+   var ia=(pa in gi)?gi[pa]:-1,ib=(pb in gi)?gi[pb]:-1,va=(pa in fv)?fv[pa]:0,vb=(pb in fv)?fv[pb]:0;
+   if(ia>=0){A[ia*n+ia]+=g;if(ib>=0)A[ia*n+ib]-=g;else b[ia]+=g*vb;if(isS)b[ia]-=g*E;}
+   if(ib>=0){A[ib*n+ib]+=g;if(ia>=0)A[ib*n+ia]-=g;else b[ib]+=g*va;if(isS)b[ib]+=g*E;}}
   var x=gauss(A,b,n);
-  // плавающие узлы
-  var reach={};reach[gs]=1;reach[gg]=1;var ch=true;
-  while(ch){ch=false;for(i=0;i<EL.length;i++){e=EL[i];if(!isRes(e))continue;var qa=find(e.a),qb=find(e.b);if(reach[qa]&&!reach[qb]){reach[qb]=1;ch=true;}else if(reach[qb]&&!reach[qa]){reach[qa]=1;ch=true;}}}
-  for(i=0;i<NN;i++){var rr=find(i);V[i]=rr===gs?VS:rr===gg?0:x[gi[rr]];FLO[i]=reach[rr]?0:1;}
-  // токи через сопротивления
-  var out=new Float64Array(NN);
-  for(i=0;i<EL.length;i++){e=EL[i];if(!isRes(e))continue;var I=(V[e.a]-V[e.b])/e.R;if(Math.abs(I)<1e-6)I=0;IE[i]=I;out[e.a]+=I;out[e.b]-=I;}
-  // распределение тока по проводам внутри групп
-  var members={};
-  for(i=0;i<NN;i++){var q=find(i);(members[q]=members[q]||[]).push(i);}
-  var edges={};
-  for(i=0;i<EL.length;i++){e=EL[i];if(cl[i]&&!isRes(e)){var q2=find(e.a);(edges[q2]=edges[q2]||[]).push(i);}}
+  var reach={};for(r in fv)reach[r]=1;
+  for(i=0;i<EL.length;i++){e=EL[i];if(e.k==="src"&&Es[i]!==null){reach[find(e.a)]=1;reach[find(e.b)]=1;}}
+  var ch=true;
+  while(ch){ch=false;for(i=0;i<EL.length;i++){e=EL[i];if(!isRes(e)&&!(e.k==="src"&&Es[i]!==null))continue;var qa=find(e.a),qb=find(e.b);if(reach[qa]&&!reach[qb]){reach[qb]=1;ch=true;}else if(reach[qb]&&!reach[qa]){reach[qa]=1;ch=true;}}}
+  for(i=0;i<N;i++){var rr=find(i);V[i]=(rr in fv)?fv[rr]:x[gi[rr]];FLO[i]=reach[rr]?0:1;if(FLO[i])V[i]=0;}
+  var out=new Float64Array(N);
+  for(i=0;i<EL.length;i++){e=EL[i];var I;
+   if(isRes(e))I=(V[e.a]-V[e.b])/e.R;
+   else if(e.k==="src"){if(Es[i]===null)continue;I=(V[e.a]-V[e.b]+Es[i])/e.R;}
+   else continue;
+   if(Math.abs(I)<1e-6)I=0;IE[i]=I;out[e.a]+=I;out[e.b]-=I;}
+  var members={},edges={};
+  for(i=0;i<N;i++){var q=find(i);(members[q]=members[q]||[]).push(i);}
+  for(i=0;i<EL.length;i++){if(cl[i]){var q2=find(EL[i].a);(edges[q2]=edges[q2]||[]).push(i);}}
   for(var root in edges){
    var mem=members[root],any=false;for(i=0;i<mem.length;i++)if(out[mem[i]]!==0){any=true;break;}
    if(!any)continue;
-   var ref=(+root===gs)?SRC:(+root===gg)?GND:mem[0],idx={},m=0;
+   var ref=(root in fr)?fr[root]:mem[0],idx={},m=0;
    for(i=0;i<mem.length;i++)if(mem[i]!==ref)idx[mem[i]]=m++;
    var L=new Float64Array(m*m),rhs=new Float64Array(m),E2=edges[root];
    for(i=0;i<E2.length;i++){e=EL[E2[i]];var u=e.a,w=e.b;if(u===w)continue;var iu=(u in idx)?idx[u]:-1,iw=(w in idx)?idx[w]:-1;
@@ -452,69 +623,91 @@ function solveCircuit(){
    var ph=gauss(L,rhs,m);
    for(i=0;i<E2.length;i++){e=EL[E2[i]];var fa=(e.a in idx)?ph[idx[e.a]]:0,fb=(e.b in idx)?ph[idx[e.b]]:0;var f=fa-fb;IE[E2[i]]=Math.abs(f)<1e-6?0:f;}
   }
-  // диоды
   var dch=false;
   for(i=0;i<EL.length;i++){e=EL[i];if(e.k!=="di")continue;
-   if(!S.dio[i]){if(V[e.a]-V[e.b]>0.3&&!FLO[e.a]){S.dio[i]=true;dch=true;}}
-   else if(IE[i]<-1e-4){S.dio[i]=false;dch=true;}}
+   if(!sh.dio[i]){if(V[e.a]-V[e.b]>0.3&&!FLO[e.a]){sh.dio[i]=true;dch=true;}}
+   else if(IE[i]<-1e-4){sh.dio[i]=false;dch=true;}}
   if(!dch)break;
  }
 }
 
-/* ===================== Реле, таймеры, ГРК ===================== */
-var COILS={};for(var ci=0;ci<EL.length;ci++){var ce=EL[ci];if(ce.k==="coil"||ce.k==="mot")(COILS[ce.n]=COILS[ce.n]||[]).push(ce);}
-function coilU(n){var L=COILS[n],m=0;for(var i=0;i<L.length;i++){var u=Math.abs(V[L[i].a]-V[L[i].b]);if(L[i].k==="mot")u=Math.abs(IE[L[i].i])>0.5?VS:0;if(u>m)m=u;}return m;}
-function sig(){var s="";for(var i=0;i<EL.length;i++){var e=EL[i];if(e.k!=="w"&&e.k!=="link"&&!isRes(e))s+=closed(e)?"1":"0";}return s;}
-var lastSig="";
+/* ===================== Реле, таймеры ===================== */
+var COILS={};
+for(si=0;si<SHEETS.length;si++){var EL0=SHEETS[si].EL;for(var ci=0;ci<EL0.length;ci++){var ce=EL0[ci];if(ce.k==="coil"||ce.k==="mot"||ce.k==="blk")(COILS[ce.n]=COILS[ce.n]||[]).push(ce);}}
+function coilFrac(n){var L=COILS[n],m=0;for(var i=0;i<L.length;i++){var e=L[i],sh=e.sh,u;
+ if(e.k==="mot")u=Math.abs(sh.IE[e.i])>=e.Ion?1:0;else u=Math.abs(sh.V[e.a]-sh.V[e.b])/e.U;
+ if(u>m)m=u;}return m;}
+function sig(sh){var s="",EL=sh.EL;for(var i=0;i<EL.length;i++){var e=EL[i];if(e.k==="w"||e.k==="link"||e.k==="fu"||e.k==="am"||isRes(e))continue;if(e.k==="src"){var v=srcE(e);s+=v===null?"n":v;}else s+=closed(e)?"1":"0";}
+ for(i=0;i<sh.fx.length;i++){var f=sh.fx[i].fn();s+="|"+(f===null?"n":f.toFixed(1));}return s;}
 function settle(force){
- for(var it=0;it<15;it++){
-  var sg=sig();if(!force&&sg===lastSig&&it>0)break;
-  if(sg!==lastSig||force){solveCircuit();lastSig=sg;force=false;}
+ for(var it=0;it<20;it++){
+  var any=false;
+  for(var o=0;o<ORDER.length;o++){var sh=SH[ORDER[o]],sg=sig(sh);if(force||sg!==sh.lastSig){solve(sh);sh.lastSig=sg;any=true;}}
+  force=false;
   var ch=false;
-  for(var n in COILS){var u=coilU(n),on=!!S.relay[n];
-   var want=on?u>=8:u>=14;
+  for(var n in COILS){var u=coilFrac(n),on=!!S.relay[n];
+   var want=on?u>=0.29:u>=0.5;
    if(want){S.tdrop[n]=TIMED[n]||0;if(!on){S.relay[n]=true;ch=true;}}
    else if(on){if(TIMED[n]&&S.tdrop[n]>0)continue;S.relay[n]=false;ch=true;}}
   if(S.relay["ВПЕРЁД"]&&S.revPos!=="F"){S.revPos="F";ch=true;}
   if(S.relay["НАЗАД"]&&S.revPos!=="B"){S.revPos="B";ch=true;}
   if(S.env["Перегрузка"]&&!S.rp){S.rp=true;ch=true;}
   if(S.relay["Возврат РП"]&&!S.env["Перегрузка"]&&S.rp){S.rp=false;ch=true;}
-  if(!ch&&sig()===lastSig)break;
+  if(!ch&&!any)break;
+  if(!ch)break;
  }
 }
 function tick(dt){
- for(var t in TIMED){if(S.relay[t]&&coilU(t)<8){S.tdrop[t]-=dt;}}
+ for(var t in TIMED){if(S.relay[t]&&coilFrac(t)<0.29){S.tdrop[t]-=dt;}}
  if(S.relay["СД"]&&S.relay["ОВ СД"]){var p=S.grk+dt*2.2;if(p>=18)p-=17;S.grk=p;}
+ S.press+=S.relay["МК"]?0.09*dt:-0.012*dt;if(S.press<0)S.press=0;if(S.press>7)S.press=7;
+ if(S.press<5.0)S.ak=true;if(S.press>6.2)S.ak=false;
+ if(S.sw["В46Л"]||S.sw["В46П"]){S.fl+=dt;if(S.fl>0.4){S.fl=0;S.flash=!S.flash;}}else{S.flash=false;S.fl=0;}
  settle(false);
 }
 
 /* ===================== Отрисовка ===================== */
-var svg=document.getElementById("svg");
-svg.setAttribute("viewBox","0 0 "+VW+" "+VH);
+function $(id){return document.getElementById(id);}
 function mk(tag,attrs,parent){var n=document.createElementNS(NS,tag);for(var k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
-var gBg=mk("g",{},svg),gW=mk("g",{},svg),gF=mk("g",{},svg),gS=mk("g",{},svg),gT=mk("g",{},svg),gUI=mk("g",{style:"display:none"},svg),gH=mk("g",{},svg);
-mk("rect",{x:0,y:0,width:VW,height:VH,fill:"#0f1217"},gBg);
-// барабан контроллера
-var colRect=mk("rect",{x:0,y:262,width:20,height:1355,fill:"#f2d33d",opacity:.10,rx:6},gBg);
-var hdr={};
-(function(){
- for(var i=0;i<KVPOS.length;i++){var p=KVPOS[i],x=KVX[p];
-  mk("line",{x1:x,y1:270,x2:x,y2:1612,stroke:"#2c3546","stroke-dasharray":"7 5","stroke-width":1.2},gBg);
-  var t=mk("text",{x:x,y:258,"text-anchor":"middle","class":"hdr","data-kv":p},gT);t.textContent=p;hdr[p]=t;}
- for(var r in REVX){var t2=mk("text",{x:REVX[r],y:132,"text-anchor":"middle","class":"hdr","data-rev":r},gT);t2.textContent=r;hdr["R"+r]=t2;
-  mk("line",{x1:REVX[r],y1:138,x2:REVX[r],y2:222,stroke:"#2c3546","stroke-dasharray":"5 4"},gBg);}
- mk("line",{x1:365,y1:140,x2:365,y2:1612,stroke:"#3a4558","stroke-dasharray":"12 6","stroke-width":1.5},gBg);
- var cap=mk("text",{x:40,y:1815,"class":"lbl",style:"font-size:16px;fill:#6f7f94"},gT);cap.textContent="Схема цепей управления вагона ЛМ-68М — учебная модель";
- mk("line",{x1:1310,y1:1795,x2:1350,y2:1795,stroke:"#8b98ab","stroke-width":3},gBg);
- mk("line",{x1:1318,y1:1802,x2:1342,y2:1802,stroke:"#8b98ab","stroke-width":2},gBg);
- mk("line",{x1:1325,y1:1809,x2:1335,y2:1809,stroke:"#8b98ab","stroke-width":2},gBg);
-})();
-for(var li=0;li<LBL.length;li++){var L0=LBL[li];var tt=mk("text",{x:L0.x,y:L0.y,"class":L0.cls,"text-anchor":(L0.cls.indexOf("wlb")===0&&L0.x>=540&&L0.x<=570)?"end":"start"},gT);tt.textContent=L0.t;}
-
-var SYM={contact:8,sw:9,bt:9,dr:20,coil:15,lamp:12,res:20,mot:17,di:8,fu:16};
-function half(e){if(e.k==="k")return 8;if(e.k==="coil")return e.x1===e.x2?Math.min(16,len(e)/2-6):Math.min(36,len(e)/2-5);return SYM[e.k]||8;}
+var SYM={sw:9,bt:9,dr:20,lamp:12,res:20,mot:17,di:8,fu:16,vm:14,am:14,src:14};
 function len(e){return Math.abs(e.x2-e.x1)+Math.abs(e.y2-e.y1);}
-function build(e){
+function half(e){
+ if(e.k==="k")return 8;
+ if(e.k==="coil")return e.x1===e.x2?Math.min(16,len(e)/2-6):Math.min(36,len(e)/2-5);
+ if(e.k==="res")return Math.min(e.heat?len(e)/2-4:20,len(e)/2-2);
+ if(e.k==="blk")return Math.min(60,len(e)/2-4);
+ if(e.k==="lamp")return Math.min(12,len(e)/2-1);
+ if(e.k==="src")return e.sym==="box"?22:10;
+ return SYM[e.k]||8;}
+var view=$("view");
+function buildSheet(sh){
+ var svg=mk("svg",{xmlns:NS,viewBox:"0 0 "+sh.W+" "+sh.H,"class":"sheet"},null);svg.style.display="none";view.appendChild(svg);sh.svg=svg;
+ var gBg=mk("g",{},svg),gW=mk("g",{},svg),gF=mk("g",{},svg),gS=mk("g",{},svg),gT=mk("g",{},svg),gUI=mk("g",{style:"display:none"},svg),gH=mk("g",{},svg);
+ sh.gUI=gUI;
+ mk("rect",{x:0,y:0,width:sh.W,height:sh.H,fill:"#0f1217"},gBg);
+ if(sh.id==="ctrl"){
+  sh.colRect=mk("rect",{x:0,y:262,width:20,height:1355,fill:"#f2d33d",opacity:.10,rx:6},gBg);
+  sh.hdr={};
+  for(var i=0;i<KVPOS.length;i++){var p=KVPOS[i],x=KVX[p];
+   mk("line",{x1:x,y1:270,x2:x,y2:1612,stroke:"#2c3546","stroke-dasharray":"7 5","stroke-width":1.2},gBg);
+   var t=mk("text",{x:x,y:258,"text-anchor":"middle","class":"hdr"},gT);t.textContent=p;sh.hdr[p]=t;}
+  for(var r in REVX){var t2=mk("text",{x:REVX[r],y:132,"text-anchor":"middle","class":"hdr"},gT);t2.textContent=r;sh.hdr["R"+r]=t2;
+   mk("line",{x1:REVX[r],y1:138,x2:REVX[r],y2:222,stroke:"#2c3546","stroke-dasharray":"5 4"},gBg);}
+  mk("line",{x1:365,y1:140,x2:365,y2:1612,stroke:"#3a4558","stroke-dasharray":"12 6","stroke-width":1.5},gBg);
+  for(p in KVX)mk("rect",{x:KVX[p]-11,y:240,width:22,height:24,fill:"#000","fill-opacity":0.001,"data-kv":p},gH);
+  for(r in REVX)mk("rect",{x:REVX[r]-24,y:116,width:48,height:22,fill:"#000","fill-opacity":0.001,"data-rev":r},gH);
+ }
+ var cap=mk("text",{x:40,y:sh.H-12,"class":"lbl",style:"font-size:16px;fill:#6f7f94"},gT);cap.textContent="ЛМ-68М · "+sh.title+" — учебная модель";
+ var gx=sh.gxy[0],gy=sh.gxy[1];
+ mk("line",{x1:gx-20,y1:gy,x2:gx+20,y2:gy,stroke:"#8b98ab","stroke-width":3},gBg);mk("line",{x1:gx-12,y1:gy+7,x2:gx+12,y2:gy+7,stroke:"#8b98ab","stroke-width":2},gBg);mk("line",{x1:gx-5,y1:gy+14,x2:gx+5,y2:gy+14,stroke:"#8b98ab","stroke-width":2},gBg);
+ for(i=0;i<sh.LBL.length;i++){var L0=sh.LBL[i];var tt=mk("text",{x:L0.x,y:L0.y,"class":L0.cls,"text-anchor":(L0.cls.indexOf("wlb")===0&&L0.x>=540&&L0.x<=570)?"end":"start"},gT);tt.textContent=L0.t;}
+ for(i=0;i<sh.EL.length;i++)buildEl(sh,sh.EL[i],gW,gF,gS,gT,gUI);
+ sh.JD=[];for(var ni=0;ni<sh.N;ni++){if(sh.NP[ni].deg>=3)sh.JD.push({n:ni,c:mk("circle",{cx:sh.NP[ni].x,cy:sh.NP[ni].y,r:4},gS)});}
+ for(i=0;i<sh.fx.length;i++){var f=sh.fx[i];mk("circle",{cx:f.x,cy:f.y,r:5,fill:"none",stroke:"#ff8a8a","stroke-width":2},gS);}
+ for(i=0;i<sh.EL.length;i++){var he=sh.EL[i];if(he.k==="link")continue;
+  mk("line",{x1:he.x1,y1:he.y1,x2:he.x2,y2:he.y2,stroke:"#000","stroke-opacity":0.001,"stroke-width":he.k==="w"?14:26,"data-i":i},gH);}
+}
+function buildEl(sh,e,gW,gF,gS,gT,gUI){
  var R={};e.R_=R;
  var vert=(e.x1===e.x2),L=len(e),ux=(e.x2-e.x1)/L,uy=(e.y2-e.y1)/L,cx=(e.x1+e.x2)/2,cy=(e.y1+e.y2)/2;
  e.cx=cx;e.cy=cy;e.vert=vert;
@@ -527,7 +720,7 @@ function build(e){
  if(e.k==="w")return;
  var ang=Math.atan2(uy,ux)*180/Math.PI;
  var g=mk("g",{transform:"translate("+cx+","+cy+") rotate("+ang+")"},gS);R.g=g;
- var k=e.k;
+ var k=e.k,hh;
  if(k==="k"){
   R.pa=mk("line",{x1:-5,y1:-9,x2:-5,y2:9,"stroke-width":2.6},g);R.pb=mk("line",{x1:5,y1:-9,x2:5,y2:9,"stroke-width":2.6},g);
   R.br=mk("line",{x1:-5,y1:0,x2:5,y2:0,"stroke-width":3,stroke:"#f2d33d"},g);
@@ -540,110 +733,125 @@ function build(e){
  }else if(k==="bt"){
   mk("circle",{cx:-7,cy:0,r:2.5,fill:"#c8d1de"},g);mk("circle",{cx:7,cy:0,r:2.5,fill:"#c8d1de"},g);
   R.bl=mk("g",{},g);mk("line",{x1:-9,y1:0,x2:9,y2:0,"stroke-width":2.6,stroke:"#e9edf3"},R.bl);mk("line",{x1:0,y1:0,x2:0,y2:-8,"stroke-width":2,stroke:"#e9edf3"},R.bl);mk("line",{x1:-4,y1:-8,x2:4,y2:-8,"stroke-width":2,stroke:"#e9edf3"},R.bl);
-  if(e.c.charAt(0)==="!")R.nc=true;
  }else if(k==="dr"){
   R.pa=mk("circle",{cx:-13,cy:0,r:4},g);R.pb=mk("circle",{cx:13,cy:0,r:4},g);
   R.br=mk("line",{x1:-13,y1:0,x2:13,y2:0,"stroke-width":4,stroke:"#f2d33d","stroke-linecap":"round"},g);
   R.dots={};var lst=e.c.substr(e.c.indexOf(":")+1).split(",");
   for(var i=0;i<lst.length;i++){var xx=e.c.indexOf("REV:")===0?REVX[lst[i]]:KVX[lst[i]];R.dots[lst[i]]=mk("circle",{cx:xx,cy:e.y1+(e.c.indexOf("REV:")===0?14:13),r:7},gS);}
  }else if(k==="coil"){
-  var hh=half(e),bw=vert?11:12;R.box=mk("rect",{x:-hh,y:-bw,width:hh*2,height:bw*2,rx:2,"stroke-width":2,stroke:"#c8d1de"},g);
+  hh=half(e);var bw=vert?11:12;R.box=mk("rect",{x:-hh,y:-bw,width:hh*2,height:bw*2,rx:2,"stroke-width":2,stroke:"#c8d1de"},g);
   if(e.timed)mk("rect",{x:hh-6,y:-bw,width:6,height:bw*2,fill:"#c8d1de"},g);
   if(!vert&&e.lab.length*6.6+6<=hh*2-(e.timed?6:0)){R.it=mk("text",{x:cx-(e.timed?3:0),y:cy+4,"text-anchor":"middle",style:"font-size:10.5px;font-weight:700"},gT);R.it.textContent=e.lab;}
  }else if(k==="lamp"){
-  R.box=mk("circle",{cx:0,cy:0,r:12,"stroke-width":2,stroke:"#c8d1de"},g);
-  mk("line",{x1:-8.5,y1:-8.5,x2:8.5,y2:8.5,stroke:"#c8d1de","stroke-width":2},g);mk("line",{x1:-8.5,y1:8.5,x2:8.5,y2:-8.5,stroke:"#c8d1de","stroke-width":2},g);
+  hh=half(e);R.box=mk("circle",{cx:0,cy:0,r:hh,"stroke-width":2,stroke:"#c8d1de"},g);var q=hh*0.7;
+  mk("line",{x1:-q,y1:-q,x2:q,y2:q,stroke:"#c8d1de","stroke-width":2},g);mk("line",{x1:-q,y1:q,x2:q,y2:-q,stroke:"#c8d1de","stroke-width":2},g);
  }else if(k==="res"){
-  R.box=mk("rect",{x:-20,y:-7,width:40,height:14,fill:"#1a1f29","stroke-width":2,stroke:"#c8d1de"},g);
+  hh=half(e);R.box=mk("rect",{x:-hh,y:-7,width:hh*2,height:14,fill:"#1a1f29","stroke-width":2,stroke:"#c8d1de"},g);
+ }else if(k==="blk"){
+  hh=half(e);R.box=mk("rect",{x:-hh,y:-20,width:hh*2,height:40,rx:4,"stroke-width":2.5,stroke:"#c8d1de"},g);
+  R.it=mk("text",{x:cx,y:cy+5,"text-anchor":"middle",style:"font-size:15px;font-weight:800"},gT);R.it.textContent=e.n;
  }else if(k==="mot"){
   R.box=mk("circle",{cx:0,cy:0,r:17,fill:"#1a1f29","stroke-width":2.5,stroke:"#c8d1de"},g);
-  var tm=mk("text",{x:0,y:5,"text-anchor":"middle",style:"font-size:13px;font-weight:700;fill:#e9edf3"},g);tm.textContent="СД";
+  var tm=mk("text",{x:cx,y:cy+5,"text-anchor":"middle",style:"font-size:12px;font-weight:700;fill:#e9edf3"},gT);tm.textContent=e.n;
   var sp=mk("g",{transform:"translate("+cx+","+cy+")"},gS);R.rot=mk("path",{d:"M0 -22 A22 22 0 0 1 19 -11",fill:"none",stroke:"#f2d33d","stroke-width":3,"stroke-linecap":"round",style:"display:none"},sp);
  }else if(k==="di"){
   R.box=mk("path",{d:"M-8 -8 L-8 8 L8 0 Z","stroke-width":1.5,stroke:"#c8d1de"},g);mk("line",{x1:8,y1:-8,x2:8,y2:8,stroke:"#c8d1de","stroke-width":2.5},g);
  }else if(k==="fu"){
   R.box=mk("rect",{x:-16,y:-7,width:32,height:14,fill:"#1a1f29","stroke-width":2,stroke:"#c8d1de"},g);
   mk("line",{x1:-16,y1:0,x2:16,y2:0,stroke:"#c8d1de","stroke-width":1.5},g);
+ }else if(k==="vm"||k==="am"){
+  R.box=mk("circle",{cx:0,cy:0,r:13,fill:"#1a1f29","stroke-width":2,stroke:"#c8d1de"},g);
+  var tv=mk("text",{x:cx,y:cy+5,"text-anchor":"middle",style:"font-size:13px;font-weight:800;fill:#e9edf3"},gT);tv.textContent=k==="vm"?"V":"A";
+  R.rd=mk("text",{x:vert?cx+20:cx,y:vert?cy+5:cy-20,"text-anchor":vert?"start":"middle",style:"font-size:13px;font-weight:800;fill:#9fd0ff"},gT);
+ }else if(k==="src"){
+  if(e.sym==="bat"){mk("line",{x1:-6,y1:-12,x2:-6,y2:12,stroke:"#c8d1de","stroke-width":2.5},g);mk("line",{x1:4,y1:-6,x2:4,y2:6,stroke:"#c8d1de","stroke-width":5},g);
+   R.box=mk("rect",{x:-10,y:-14,width:20,height:28,fill:"none",stroke:"none"},g);}
+  else{R.box=mk("rect",{x:-22,y:-16,width:44,height:32,rx:4,"stroke-width":2.5,stroke:"#c8d1de"},g);
+   var tb=mk("text",{x:cx,y:cy+4,"text-anchor":"middle",style:"font-size:11px;font-weight:800"},gT);tb.textContent="~/=";R.it=tb;}
+  var pl=mk("text",{x:e.x2+(vert?10:0),y:e.y2+(vert?14:-8),"class":"wlb wlb17"},gT);pl.textContent="+";
  }
- // подпись
  var lab=e.lab;
  if(lab===undefined&&e.k==="k"){lab=e.c.replace("!","");if(lab.indexOf("РК:")===0)lab="РК"+lab.substr(3);}
- if(R.it)lab="";
+ if(k==="coil"&&R.it)lab="";
  if(lab){var tx,ty,an="middle";
-  if(vert){tx=cx+(k==="bt"&&e.lab==="КН7"?-12:(k==="coil"?18:14));ty=cy+4;an=(k==="bt"&&e.lab==="КН7")?"end":"start";}
-  else{tx=cx;ty=cy-(k==="coil"||k==="lamp"?18:(k==="mot"?24:13));
-   if(k==="k"||k==="bt"||k==="sw"){for(var q=0;q<RAW.length;q++){var o=RAW[q];if(o===e||o.y1!==o.y2)continue;if(o.y1<cy&&o.y1>cy-30&&Math.max(o.x1,o.x2)>cx-14&&Math.min(o.x1,o.x2)<cx+14){ty=cy+21;break;}}}}
+  if(vert){tx=cx+(k==="bt"&&e.lab==="КН7"?-12:(k==="coil"?18:k==="lamp"?16:14));ty=cy+4;an=(k==="bt"&&e.lab==="КН7")?"end":"start";if(k==="src"){tx=cx+(e.sym==="box"?28:16);}}
+  else if(k==="lamp"){tx=cx+16;ty=cy-9;an="start";}
+  else{tx=cx;ty=cy-(k==="coil"?18:(k==="mot"?24:13));
+   if(k==="k"||k==="bt"||k==="sw"){for(var qq=0;qq<sh.RAW.length;qq++){var o=sh.RAW[qq];if(o===e||o.y1!==o.y2)continue;if(o.y1<cy&&o.y1>cy-30&&Math.max(o.x1,o.x2)>cx-14&&Math.min(o.x1,o.x2)<cx+14){ty=cy+21;break;}}}}
   var t=mk("text",{x:tx,y:ty,"text-anchor":an,"class":"lbl"},gT);t.textContent=lab;R.t=t;}
- if(isRes(e)){R.ui=mk("text",{x:vert?cx+18:cx,y:vert?cy+18:cy+(k==="mot"?32:26),"text-anchor":vert?"start":"middle","class":"uiv"},gUI);}
+ if(isRes(e)&&k!=="vm"){R.ui=mk("text",{x:vert?cx+18:cx,y:vert?cy+18:cy+(k==="mot"?32:k==="blk"?34:26),"text-anchor":vert?"start":"middle","class":"uiv"},gUI);}
 }
-for(var bi=0;bi<EL.length;bi++)build(EL[bi]);
-// узлы-соединения
-var JD=[];for(var ni=0;ni<NN;ni++){if(NP[ni].deg>=3)JD.push({n:ni,c:mk("circle",{cx:NP[ni].x,cy:NP[ni].y,r:4},gS)});}
-// зоны нажатия
-for(var hi=0;hi<EL.length;hi++){var he=EL[hi];if(he.k==="link")continue;
- mk("line",{x1:he.x1,y1:he.y1,x2:he.x2,y2:he.y2,stroke:"#000","stroke-opacity":0.001,"stroke-width":he.k==="w"?14:26,"data-i":hi},gH);}
-for(var p in KVX)mk("rect",{x:KVX[p]-11,y:240,width:22,height:24,fill:"#000","fill-opacity":0.001,"data-kv":p},gH);
-for(var rv in REVX)mk("rect",{x:REVX[rv]-24,y:116,width:48,height:22,fill:"#000","fill-opacity":0.001,"data-rev":rv},gH);
+for(si=0;si<SHEETS.length;si++)buildSheet(SHEETS[si]);
 
 /* --- цвета --- */
-var ELEC=false,SEL=null,SELR=null,VM=null,VMA=null;
-function vcol(n){if(FLO[n])return "#3a4252";var t=Math.max(0,Math.min(1,V[n]/VS));
- var r=Math.round(91+(255-91)*t),g=Math.round(141+(75-141)*t),b=Math.round(239+(75-239)*t);return "rgb("+r+","+g+","+b+")";}
+var ELEC=false,SEL=null,SELR=null,VM=null,VMA=null,showUI=false,ACT=SH.ctrl;
+function vcol(sh,n){if(sh.FLO[n])return "#3a4252";var v=sh.V[n],t;
+ if(v<=28)t=Math.max(0,v/28)*0.62;else t=0.62+Math.min(1,(v-28)/522)*0.38;
+ var c0=[91,141,239],c1=[255,75,75],c2=[255,170,40];
+ var a,b2,f;if(t<=0.62){a=c0;b2=c1;f=t/0.62;}else{a=c1;b2=c2;f=(t-0.62)/0.38;}
+ return "rgb("+Math.round(a[0]+(b2[0]-a[0])*f)+","+Math.round(a[1]+(b2[1]-a[1])*f)+","+Math.round(a[2]+(b2[2]-a[2])*f)+")";}
 function setA(n,k,v){if(n["_"+k]!==v){n["_"+k]=v;n.setAttribute(k,v);}}
 function setC(n,v){if(n._c!==v){n._c=v;n.setAttribute("class",v);}}
 function fmtV(v){return (Math.round(v*10)/10).toFixed(1).replace(".",",");}
 function fmtI(i){var a=Math.abs(i);return a>=1?(Math.round(a*100)/100).toFixed(2).replace(".",","):(Math.round(a*1000)/1000).toFixed(3).replace(".",",");}
-var showUI=false;
 function paint(){
+ var sh=ACT,EL=sh.EL,V=sh.V,IE=sh.IE;
  for(var i=0;i<EL.length;i++){var e=EL[i],R=e.R_;if(!R||!R.la)continue;
-  var ca=vcol(e.a),cb=vcol(e.b);
+  var ca=vcol(sh,e.a),cb=vcol(sh,e.b);
   setA(R.la,"stroke",ca);if(R.lb)setA(R.lb,"stroke",cb);
-  var I=IE[i],a=Math.abs(I);
-  if(ELEC)I=-I;
-  var cls="fl";if(a>0.002){cls+=" on "+(a>1?"s3":a>0.25?"s2":"s1");if(I<0)cls+=" rv";}
+  var I=IE[i],a=Math.abs(I);if(ELEC)I=-I;
+  var cls="fl";if(a>0.002){cls+=" on "+(a>3?"s3":a>0.25?"s2":"s1");if(I<0)cls+=" rv";}
   setC(R.fl,cls);
   var cl=closed(e);
   if(e.k==="k"){setA(R.pa,"stroke",ca);setA(R.pb,"stroke",cb);setA(R.br,"display",cl?"inline":"none");}
   else if(e.k==="dr"){setA(R.pa,"fill",ca);setA(R.pb,"fill",cb);setA(R.br,"display",cl?"inline":"none");
    for(var d in R.dots){var act=(e.c.indexOf("REV:")===0)?d===S.rev:d===S.kv;setA(R.dots[d],"fill",act?"#f2d33d":"#5d6a7e");}}
-  else if(e.k==="sw"){setA(R.bl,"x2",8);setA(R.bl,"y2",cl?0:-9);setA(R.bl,"stroke",cl?"#f2d33d":"#e9edf3");}
+  else if(e.k==="sw"){setA(R.bl,"y2",cl?0:-9);setA(R.bl,"stroke",cl?"#f2d33d":"#e9edf3");}
   else if(e.k==="bt"){setA(R.bl,"transform",cl?"translate(0,0)":"translate(0,-6)");}
-  else if(e.k==="coil"){setA(R.box,"fill",S.relay[e.n]?"#f2d33d":"#1a1f29");if(R.it)setA(R.it,"fill",S.relay[e.n]?"#1b1a10":"#e9edf3");}
-  else if(e.k==="lamp"){setA(R.box,"fill",Math.abs(V[e.a]-V[e.b])>10?"#ffd84d":"#1a1f29");}
-  else if(e.k==="mot"){setA(R.rot.parentNode,"class",(S.relay["СД"]&&S.relay["ОВ СД"])?"spin":"");setA(R.rot,"style",(S.relay["СД"]&&S.relay["ОВ СД"])?"":"display:none");}
-  else if(e.k==="di"){setA(R.box,"fill",S.dio[i]?"#f2d33d":"#1a1f29");}
+  else if(e.k==="coil"||e.k==="blk"){var on=!!S.relay[e.n];setA(R.box,"fill",on?"#f2d33d":"#1a1f29");if(R.it)setA(R.it,"fill",on?"#1b1a10":"#e9edf3");}
+  else if(e.k==="lamp"){var lu=Math.abs(V[e.a]-V[e.b])/e.U;setA(R.box,"fill",lu>0.4?"#ffd84d":lu>0.15?"#7a6a2a":"#1a1f29");}
+  else if(e.k==="mot"){var run=!!S.relay[e.n];setA(R.rot.parentNode,"class",run?"spin":"");setA(R.rot,"style",run?"":"display:none");}
+  else if(e.k==="di"){setA(R.box,"fill",sh.dio[i]?"#f2d33d":"#1a1f29");}
+  else if(e.k==="vm"){var s1=FLOAT(sh,e)?"—":fmtV(V[e.a]-V[e.b])+" В";if(R.rd._t!==s1){R.rd._t=s1;R.rd.textContent=s1;}}
+  else if(e.k==="am"){var s2=(IE[i]<0?"−":"")+fmtI(IE[i])+" А";if(R.rd._t!==s2){R.rd._t=s2;R.rd.textContent=s2;}}
+  else if(e.k==="src"){var on2=srcE(e)!==null;setA(R.box,"fill",e.sym==="box"?(on2?"#f2d33d":"#1a1f29"):"none");if(R.it)setA(R.it,"fill",on2?"#1b1a10":"#e9edf3");}
   if(R.ui&&showUI){var U=Math.abs(V[e.a]-V[e.b]);var s=fmtV(U)+" В · "+fmtI(IE[i])+" А";if(R.ui._t!==s){R.ui._t=s;R.ui.textContent=s;}}
-  var sel=(SELR&&relayOf(e)===SELR)||(SEL===i);
+  var sel=(SELR&&relayOf(e)===SELR)||(SEL===e);
   if(R.g&&R.g._sel!==sel){R.g._sel=sel;var ch=R.g.childNodes;for(var j=0;j<ch.length;j++){if(sel)ch[j].setAttribute("class","selr");else ch[j].removeAttribute("class");}}
  }
- for(i=0;i<JD.length;i++)setA(JD[i].c,"fill",vcol(JD[i].n));
- for(var p in KVX)setC(hdr[p],"hdr"+(p===S.kv?" cur":""));
- for(var r in REVX)setC(hdr["R"+r],"hdr"+(r===S.rev?" cur":""));
- setA(colRect,"x",KVX[S.kv]-12);setA(colRect,"width",24);
- document.getElementById("short").style.display=SHORT?"block":"none";
+ for(i=0;i<sh.JD.length;i++)setA(sh.JD[i].c,"fill",vcol(sh,sh.JD[i].n));
+ if(sh.id==="ctrl"){for(var p in KVX)setC(sh.hdr[p],"hdr"+(p===S.kv?" cur":""));
+  for(var r in REVX)setC(sh.hdr["R"+r],"hdr"+(r===S.rev?" cur":""));
+  setA(sh.colRect,"x",KVX[S.kv]-12);setA(sh.colRect,"width",24);}
+ $("short").style.display=sh.SHORT?"block":"none";
 }
+function FLOAT(sh,e){return sh.FLO[e.a]||sh.FLO[e.b];}
 
 /* ===================== «Почему» ===================== */
-var ADJ=[];for(var ai=0;ai<NN;ai++)ADJ.push([]);
-for(ai=0;ai<EL.length;ai++){var ae=EL[ai];if(isRes(ae))continue;ADJ[ae.a].push(ai);ADJ[ae.b].push(ai);}
 function lab(e){
  if(e.k==="dr")return e.c.indexOf("REV:")===0?"реверсор «"+e.c.substr(4)+"»":"КВ ["+e.c.substr(3)+"]";
  if(e.k==="fu")return e.lab;
  if(e.k==="di")return e.n;
- if(e.k==="sw")return (e.c.charAt(0)==="!"?e.c.substr(1)+" (выкл.)":e.c);
+ if(e.k==="am")return "амперметр";
+ if(e.k==="sw")return (e.lab||e.c.replace("!",""))+(e.c.charAt(0)==="!"?" (выкл.)":"");
  if(e.k==="bt")return "кн. "+(e.lab||e.c.replace("!",""))+(e.c.charAt(0)==="!"?" (отпущ.)":"");
  var c=e.c,nc=c.charAt(0)==="!";if(nc)c=c.substr(1);
- if(c.indexOf("РК:")===0)c="РК"+c.substr(3);
+ if(e.lab)c=e.lab;else if(c.indexOf("РК:")===0)c="РК"+c.substr(3);
  return c+(nc?" (н.з.)":"");
 }
-function paths(start,target){
- var res=[],seen=new Uint8Array(NN),steps=0,acc=[];
+function targets(sh,plus){var t={},i,e;
+ if(plus){for(i=0;i<sh.fx.length;i++){var v=sh.fx[i].fn();if(v!==null&&v>0)t[sh.fx[i].n]=1;}for(i=0;i<sh.EL.length;i++){e=sh.EL[i];if(e.k==="src")t[e.b]=1;}}
+ else{t[sh.GND]=1;for(i=0;i<sh.EL.length;i++){e=sh.EL[i];if(e.k==="src")t[e.a]=1;}}
+ return t;}
+function paths(sh,start,plus){
+ var tg=targets(sh,plus),res=[],seen=new Uint8Array(sh.N),steps=0,acc=[];
  function dfs(n){
   if(res.length>=6||++steps>40000)return;
-  if(n===target){res.push(acc.slice());return;}
-  seen[n]=1;var L=ADJ[n];
-  for(var i=0;i<L.length;i++){var e=EL[L[i]],o=e.a===n?e.b:e.a;if(seen[o])continue;
-   if(e.k==="di"&&((target===SRC&&e.b!==n)||(target===GND&&e.a!==n)))continue;
+  if(tg[n]&&acc.length){res.push(acc.slice());return;}
+  if(tg[n]&&!acc.length){res.push([]);return;}
+  seen[n]=1;var L=sh.ADJ[n];
+  for(var i=0;i<L.length;i++){var e=sh.EL[L[i]],o=e.a===n?e.b:e.a;if(seen[o])continue;
+   if(e.k==="di"&&((plus&&e.b!==n)||(!plus&&e.a!==n)))continue;
    acc.push(e);dfs(o);acc.pop();}
   seen[n]=0;
  }
@@ -657,133 +865,167 @@ function pathHtml(ps,toSrc){
   h+="<div class='path'>"+s+"</div>";}
  return h;
 }
+var NICE={"ВП (песок)":"ВП — вентиль песочницы","БПН":"БПН — блок питания низковольтный","МК":"МК — мотор компрессора","ВК":"ВК — вентилятор кабины","СД":"СД — серводвигатель ГРК"};
 function coilInfo(n){
- var L=COILS[n];if(!L)return "";var on=!!S.relay[n];
- var h="<div class='big'>"+(n==="ВП (песок)"?"ВП — вентиль песочницы":n)+" — "+(on?"<span class='c-ok'>включено</span>":"<span class='c-no'>выключено</span>")+"</div>";
- for(var i=0;i<L.length;i++){var e=L[i],U=V[e.a]-V[e.b];
-  h+="<span class='meter'>U = "+fmtV(Math.abs(U))+" В</span><span class='meter'>I = "+fmtI(IE[e.i])+" А</span><span class='meter'>R = "+e.R+" Ом</span>";
+ var L=COILS[n];if(!L)return "";var on=!!S.relay[n],h="";
+ h+="<div class='big'>"+(NICE[n]||n)+" — "+(on?"<span class='c-ok'>"+(L[0].k==="mot"?"крутится":"включено")+"</span>":"<span class='c-no'>"+(L[0].k==="mot"?"стоит":"выключено")+"</span>")+"</div>";
+ for(var i=0;i<L.length;i++){var e=L[i],sh=e.sh,U=sh.V[e.a]-sh.V[e.b];
+  if(sh!==ACT)h+="<div><button class='tb' data-go='"+sh.id+"'>→ лист «"+sh.title+"»</button></div>";
+  h+="<span class='meter'>U = "+fmtV(Math.abs(U))+" В</span><span class='meter'>I = "+fmtI(sh.IE[e.i])+" А</span><span class='meter'>R = "+e.R+" Ом</span>";
   if(TIMED[n])h+="<div class='c-n'>реле времени: отпадает с выдержкой "+String(TIMED[n]).replace(".",",")+" с</div>";
-  h+="<div style='margin-top:6px'><b>От плюса:</b></div>"+pathHtml(paths(e.a,SRC),true);
-  h+="<div><b>К минусу:</b></div>"+pathHtml(paths(e.b,GND),false);}
+  h+="<div style='margin-top:6px'><b>От плюса:</b></div>"+pathHtml(paths(sh,e.a,true),true);
+  h+="<div><b>К минусу:</b></div>"+pathHtml(paths(sh,e.b,false),false);}
  return h;
 }
-function infoFor(i){
- var e=EL[i],h="",cl=closed(e),U=V[e.a]-V[e.b];
- var rn=relayOf(e);
- if(e.k==="w"){h="<div class='big'>Провод</div><span class='meter'>U = "+(FLO[e.a]?"— (оторван)":fmtV(V[e.a])+" В")+"</span><span class='meter'>I = "+fmtI(IE[i])+" А</span><div class='c-n'>Напряжение — относительно минуса.</div>";}
- else if(e.k==="coil"||e.k==="mot")h=coilInfo(e.n);
- else if(isRes(e)){h="<div class='big'>"+(e.k==="lamp"?"Лампа "+e.n+" (Возврат РП)":"Резистор "+e.n)+"</div><span class='meter'>U = "+fmtV(Math.abs(U))+" В</span><span class='meter'>I = "+fmtI(IE[i])+" А</span><span class='meter'>R = "+e.R+" Ом</span>";}
+function infoFor(e){
+ var sh=e.sh,i=e.i,h="",cl=closed(e),U=sh.V[e.a]-sh.V[e.b],rn=relayOf(e);
+ if(e.k==="w"){h="<div class='big'>Провод</div><span class='meter'>U = "+(sh.FLO[e.a]?"— (оторван)":fmtV(sh.V[e.a])+" В")+"</span><span class='meter'>I = "+fmtI(sh.IE[i])+" А</span><div class='c-n'>Напряжение — относительно минуса.</div>";}
+ else if(e.k==="coil"||e.k==="mot"||e.k==="blk")h=coilInfo(e.n);
+ else if(e.k==="vm")h="<div class='big'>Вольтметр</div><span class='meter'>"+(FLOAT(sh,e)?"—":fmtV(U)+" В")+"</span>";
+ else if(e.k==="am")h="<div class='big'>Амперметр (ток батареи)</div><span class='meter'>"+fmtI(sh.IE[i])+" А</span><div class='c-n'>"+(sh.IE[i]>0.01?"Батарея заряжается.":sh.IE[i]<-0.01?"Батарея разряжается — питает цепи сама.":"Ток через батарею не идёт.")+"</div>";
+ else if(e.k==="src"){var E=srcE(e);h="<div class='big'>"+(e.sym==="bat"?"Аккумуляторная батарея (половина, 12 В)":"БПН — выход 28 В")+"</div><span class='meter'>"+(E===null?"не работает":"ЭДС "+fmtV(E)+" В")+"</span><span class='meter'>I = "+fmtI(sh.IE[i])+" А</span>";
+  if(e.sym==="box")h+="<div class='c-n'>Работает, когда на входе БПН есть 550 В (лист «ВВ вспомогательные»: КС, АВ-2, Пр12, КМГ).</div>";}
+ else if(isRes(e)){var lu=Math.abs(U);h="<div class='big'>"+(e.k==="lamp"?"Лампа "+e.n:"Резистор "+(e.lab||e.n))+"</div><span class='meter'>U = "+fmtV(lu)+" В</span><span class='meter'>I = "+fmtI(sh.IE[i])+" А</span><span class='meter'>R = "+e.R+" Ом</span>";}
  else{
   var t=e.k==="dr"?"Контакт контроллера":e.k==="sw"?"Выключатель":e.k==="bt"?"Кнопка":e.k==="fu"?"Предохранитель":e.k==="di"?"Диод":"Контакт";
-  h="<div class='big'>"+t+" "+lab(e)+" — "+(cl||e.k==="di"&&S.dio[i]?"<span class='c-ok'>"+(e.k==="di"?"открыт":"замкнут")+"</span>":"<span class='c-no'>"+(e.k==="di"?"закрыт":"разомкнут")+"</span>")+"</div>";
-  h+="<span class='meter'>U на контакте = "+fmtV(Math.abs(U))+" В</span><span class='meter'>I = "+fmtI(IE[i])+" А</span>";
+  var op=(e.k==="di"?sh.dio[i]:cl);
+  h="<div class='big'>"+t+" "+lab(e)+" — "+(op?"<span class='c-ok'>"+(e.k==="di"?"открыт":"замкнут")+"</span>":"<span class='c-no'>"+(e.k==="di"?"закрыт":"разомкнут")+"</span>")+"</div>";
+  h+="<span class='meter'>U на контакте = "+fmtV(Math.abs(U))+" В</span><span class='meter'>I = "+fmtI(sh.IE[i])+" А</span>";
   if(e.k==="k"&&e.c.charAt(0)==="!")h+="<div class='c-n'>Нормально замкнутый: размыкается, когда реле включено.</div>";
   if(e.k==="dr")h+="<div class='c-n'>Нажимай на названия позиций над барабаном, чтобы переключать контроллер.</div>";
   if(e.k==="sw"||e.k==="bt")h+="<div class='c-n'>Нажатие по элементу на схеме переключает его.</div>";
   if(rn&&COILS[rn])h+="<hr style='border:0;border-top:1px solid #2f384a'>"+coilInfo(rn);
-  else if(rn)h+="<div class='c-n'>"+(rn==="РН"||rn==="РН2"?"Реле напряжения: включено, когда есть напряжение в контактной сети.":rn==="РС"?"Реле сигнализации дверей.":rn==="РП"?"Реле перегрузки (защёлка). Сбрасывается катушкой «Возврат РП».":"Реле токовой цепи — в модели не моделируется.")+"</div>";
-  if(e.c&&(e.c.indexOf("РК")===0||e.c.indexOf("!РК")===0))h+="<div class='c-n'>Кулачок группового реостатного контроллера (ГРК), сейчас позиция "+grkInt()+".</div>";
+  else if(rn)h+="<div class='c-n'>"+(rn==="РН"||rn==="РН2"?"Реле напряжения: включено, когда есть напряжение в контактной сети.":rn==="РП"?"Реле перегрузки (защёлка). Сбрасывается катушкой «Возврат РП».":rn==="АК"?"Автомат компрессора: замкнут, пока давление ниже 6,2 атм; включается снова ниже 5,0 атм. Сейчас "+S.press.toFixed(1).replace(".",",")+" атм.":rn==="РСП"?"Прерыватель указателей поворотов: мигает, пока включён В46.":rn==="КВ"?"Концевые выключатели дверей: замкнуты, когда двери открыты.":"Реле токовой цепи — в модели не моделируется.")+"</div>";
+  if(e.c&&(e.c.indexOf("РК")===0||e.c.indexOf("!РК")===0))h+="<div class='c-n'>Кулачок ГРК, сейчас позиция "+grkInt()+".</div>";
  }
  return h;
 }
 
 /* ===================== Интерфейс ===================== */
-function $(id){return document.getElementById(id);}
 function tap(node,fn){node.addEventListener("click",fn,false);}
-var info=$("info");
-function showInfo(h){if(!h){info.style.display="none";return;}info.innerHTML="<button class='x' id='ix'>✕</button>"+h;info.style.display="block";tap($("ix"),function(){SEL=null;SELR=null;info.style.display="none";render();});}
-var curInfo=null;
-function refreshInfo(){if(curInfo!==null&&info.style.display==="block")showInfo(infoFor(curInfo));}
+var info=$("info"),curInfo=null;
+function showInfo(h){if(!h){info.style.display="none";return;}info.innerHTML="<button class='x' id='ix'>✕</button>"+h;info.style.display="block";
+ tap($("ix"),function(){SEL=null;SELR=null;curInfo=null;info.style.display="none";render();});
+ var gos=info.querySelectorAll("[data-go]");for(var i=0;i<gos.length;i++)(function(b){tap(b,function(){setSheet(b.getAttribute("data-go"));});})(gos[i]);}
+function refreshInfo(){if(curInfo&&info.style.display==="block")showInfo(curInfo.n?coilInfo(curInfo.n):infoFor(curInfo.e));}
 function onSvgTap(ev){
  var t=ev.target,kv=t.getAttribute("data-kv"),rv=t.getAttribute("data-rev"),di=t.getAttribute("data-i");
  if(kv){S.kv=kv;update();return;}
  if(rv){S.rev=rv;update();return;}
  if(di===null)return;
- var i=+di,e=EL[i];
- if(VM){var nd=e.a;if(VMA===null){VMA=nd;$("vm").textContent="Вольтметр: точка 1 = "+(FLO[nd]?"—":fmtV(V[nd])+" В")+". Тапни вторую точку";}
-  else{var u=(FLO[nd]||FLO[VMA])?null:V[VMA]-V[nd];$("vm").textContent="Вольтметр: U = "+(u===null?"— (точка оторвана)":fmtV(u)+" В")+". Тапни новую точку 1";VMA=null;}return;}
+ var sh=ACT,e=sh.EL[+di];
+ if(VM){var nd=e.a;if(VMA===null){VMA=nd;$("vm").textContent="Вольтметр: точка 1 = "+(sh.FLO[nd]?"—":fmtV(sh.V[nd])+" В")+". Тапни вторую точку";}
+  else{var u=(sh.FLO[nd]||sh.FLO[VMA])?null:sh.V[VMA]-sh.V[nd];$("vm").textContent="Вольтметр: U = "+(u===null?"— (точка оторвана)":fmtV(u)+" В")+". Тапни новую точку 1";VMA=null;}return;}
  if(e.k==="sw"||e.k==="bt"){var c=e.c.replace("!","");if(e.k==="sw")S.sw[c]=!S.sw[c];else S.bt[c]=!S.bt[c];}
- SEL=i;SELR=relayOf(e);curInfo=i;update();showInfo(infoFor(i));
+ SEL=e;SELR=relayOf(e);curInfo={e:e};update();showInfo(infoFor(e));
 }
-tap(svg,onSvgTap);
-
 function mkBtn(box,txt,fn,cls){var b=document.createElement("button");b.className=cls||"btn";b.textContent=txt;tap(b,fn);box.appendChild(b);return b;}
-var UIB=[];
+var UIB=[],DYN=[];
+var SWNAME={"ОМ":"ОМ (откл. моторов)","ВНЦ":"В1 ВНЦ (выкл. низковольтных цепей)","В3":"В3 Батарея","В46Л":"В46 поворот ←","В46П":"В46 поворот →","В2р":"В2 радио","В26к":"В26 освещение камер","В12к":"В12 освещение камер","В13к":"В13 освещение камер","В14к":"В14 освещение камер","В16к":"В16 освещение камер","В5":"В5 Управление-2"};
+var BTNAME={"ПБ":"ПБ (педаль)","СЕКВ":"Секвенция","ВРП":"Возврат РП","КН7":"КН7","ПП":"ПП (песок)","Авар":"Авар. открытие дверей","Кн6":"Кн6 (дальний свет)"};
 function buildUI(){
- var i;
- var rv=["Назад","Стоп","Вперёд"];
+ var i,rv=["Назад","Стоп","Вперёд"];
  for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn($("rev"),v,function(){S.rev=v;update();}),f:function(){return S.rev===v;}});})(rv[i]);
  for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn($("kv"),v,function(){S.kv=v;update();}),f:function(){return S.kv===v;}});})(KVPOS[i]);
- tg($("sw"),S.sw,{"ОМ":"ОМ (откл. моторов)"});
- tg($("bt"),S.bt,{"ПБ":"ПБ (педаль)","СЕКВ":"Секвенция","ВРП":"Возврат РП","КН7":"КН7","ПП":"ПП (песок)"});
- tg($("env"),S.env,{"КС":"Напряжение в КС","Двери":"Двери открыты","Перегрузка":"Перегрузка (РП)"});
+ tg($("env"),S.env,{"КС":"Напряжение в КС","Двери":"Двери открыты","Перегрузка":"Перегрузка (РП)"},UIB);
  var g=$("grk");for(i=1;i<=17;i++){var s=document.createElement("span");s.textContent=i;g.appendChild(s);}
- // быстрая панель для телефона
  var q=$("quick");
  for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){S.rev=v;update();}),f:function(){return S.rev===v;},rv:true});})(rv[i]);
  q.appendChild(document.createElement("br"));
  for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){S.kv=v;update();}),f:function(){return S.kv===v;}});})(KVPOS[i]);
+ var tb=$("tabs");
+ var SHORT={"ctrl":"Управление","hv":"ВВ всп.","lv1":"НВ питание","lv2":"НВ потреб."};
+ for(i=0;i<SHEETS.length;i++)(function(sh){var b=mkBtn(tb,"",function(){setSheet(sh.id);},"tb tab");b.innerHTML="<span class='fu'>"+sh.title+"</span><span class='sh'>"+SHORT[sh.id]+"</span>";sh.tab=b;})(SHEETS[i]);
 }
-function tg(box,obj,names){for(var key in obj)(function(kk){var d=document.createElement("div");d.className="tg"+(kk==="Перегрузка"?" warn":"");d.innerHTML="<span>"+(names[kk]||kk)+"</span><b></b>";tap(d,function(){obj[kk]=!obj[kk];update();});box.appendChild(d);UIB.push({n:d,f:function(){return obj[kk];},tg:true});})(key);}
+function tg(box,obj,names,list,keys){var ks=keys||[];if(!keys)for(var k0 in obj)ks.push(k0);
+ for(var i=0;i<ks.length;i++)(function(kk){var d=document.createElement("div");d.className="tg"+(kk==="Перегрузка"?" warn":"");d.innerHTML="<span>"+(names[kk]||kk)+"</span><b></b>";tap(d,function(){obj[kk]=!obj[kk];update();});box.appendChild(d);list.push({n:d,f:function(){return obj[kk];},tg:true});})(ks[i]);}
+function buildDyn(){
+ DYN=[];$("sw").innerHTML="";$("bt").innerHTML="";
+ var sws=[],bts=[],seen={},EL=ACT.EL;
+ for(var i=0;i<EL.length;i++){var e=EL[i];if(e.k!=="sw"&&e.k!=="bt")continue;var c=e.c.replace("!","");if(seen[e.k+c])continue;seen[e.k+c]=1;(e.k==="sw"?sws:bts).push(c);}
+ tg($("sw"),S.sw,SWNAME,DYN,sws);tg($("bt"),S.bt,BTNAME,DYN,bts);
+ $("hsw").style.display=sws.length?"":"none";$("hbt").style.display=bts.length?"":"none";
+ var c1=ACT.id==="ctrl";document.body.className=c1?"":"notctrl";$("hrev").style.display=c1?"":"none";$("rev").style.display=c1?"":"none";$("hkv").style.display=c1?"":"none";$("kv").style.display=c1?"":"none";
+ buildSumDevs();
+}
 function render(){
- for(var i=0;i<UIB.length;i++){var u=UIB[i],on=u.f();var base=u.tg?(u.n.className.indexOf("warn")>=0?"tg warn":"tg"):(u.rv?"btn rv":"btn");var c=base+(on?" on":"");if(u.n.className!==c)u.n.className=c;if(u.tg){var b=u.n.getElementsByTagName("b")[0],tx=on?"вкл":"выкл";if(b.textContent!==tx)b.textContent=tx;}}
- var gi=grkInt(),sp=$("grk").children;for(i=0;i<sp.length;i++){var c2=(FIX[i+1]?"fix":"")+(i+1===gi?" cur":"");if(sp[i].className!==c2)sp[i].className=c2;}
+ var all=UIB.concat(DYN);
+ for(var i=0;i<all.length;i++){var u=all[i],on=u.f();var base=u.tg?(u.n.className.indexOf("warn")>=0?"tg warn":"tg"):(u.rv?"btn rv":"btn");var c=base+(on?" on":"");if(u.n.className!==c)u.n.className=c;if(u.tg){var b=u.n.getElementsByTagName("b")[0],tx=on?"вкл":"выкл";if(b.textContent!==tx)b.textContent=tx;}}
+ var gi=grkInt(),sp=$("grk").children;for(i=0;i<sp.length;i++){var c2=(FIXP[i+1]?"fix":"")+(i+1===gi?" cur":"");if(sp[i].className!==c2)sp[i].className=c2;}
  var st="КВ <b>"+S.kv+"</b> · <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b> · ГРК <b>"+gi+(onPos()?"":"→"+(gi%17+1))+"</b>"+(S.relay["СД"]&&S.relay["ОВ СД"]?" · <span class='c-ok'>СД крутится</span>":"")+(S.rp?" · <span class='c-no'>РП</span>":"");
  if($("status")._h!==st){$("status")._h=st;$("status").innerHTML=st;}
+ for(i=0;i<SHEETS.length;i++){var cc="tb tab"+(SHEETS[i]===ACT?" on":"");if(SHEETS[i].tab.className!==cc)SHEETS[i].tab.className=cc;}
  paint();renderSum();
 }
 function update(){settle(true);render();refreshInfo();}
 
 /* --- сводка --- */
-var SHOW=["ВПЕРЁД","НАЗАД","РХ","РРТ1","РРТ2","РР","ЛК4","ЛК2","ЛК1","ЛК3","Р","Ш","Ш1","Ш2","КТ1","КТ2","ТБ","Т1","Т2","ВТ1","ВТ2","СД","ОВ СД","РОВ","СР","РТ","КРТ","РВВ2","РВЗ","Возврат РП","ВП (песок)"];
 var WIRES=[["К",70,80],["17",600,80],["31",40,1640],["2",385,150],["3",385,210],["25",385,290],["4",300,380],["5",385,480],["6",385,610],["7",385,665],["19",385,705],["8",385,820],["уз",385,1060],["1",385,1160],["11",385,1300],["12",385,1340],["13",385,1385],["14",480,1520],["9",480,1560],["16",385,1600],["15",260,1690]];
 var DEVN=[],WRN=[];
-(function(){var dv=$("devs"),w=$("wires"),i;
- for(i=0;i<SHOW.length;i++)(function(n){var b=document.createElement("span");b.className="dev";b.textContent=n==="ВП (песок)"?"ВП (песок)":n;tap(b,function(){SEL=null;SELR=n;curInfo=null;var L=COILS[n];if(L){curInfo=L[0].i;}render();if(L)showInfo(coilInfo(n));});dv.appendChild(b);DEVN.push({n:n,el:b});})(SHOW[i]);
- for(i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i][0];w.appendChild(x);WRN.push({node:NODES[WIRES[i][1]+","+WIRES[i][2]],el:x});}
-})();
+function buildSumDevs(){var dv=$("devs");dv.innerHTML="";DEVN=[];var seen={},EL=ACT.EL;
+ for(var i=0;i<EL.length;i++){var e=EL[i];if((e.k!=="coil"&&e.k!=="mot"&&e.k!=="blk")||seen[e.n])continue;seen[e.n]=1;
+  (function(n){var b=document.createElement("span");b.className="dev";b.textContent=n;tap(b,function(){SEL=null;SELR=n;curInfo={n:n};render();showInfo(coilInfo(n));});dv.appendChild(b);DEVN.push({n:n,el:b});})(e.n);}
+ $("hwires").style.display=ACT.id==="ctrl"?"":"none";$("wires").style.display=ACT.id==="ctrl"?"":"none";}
+(function(){var w=$("wires");var sh=SH.ctrl;for(var i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i][0];w.appendChild(x);WRN.push({node:sh.NODES[WIRES[i][1]+","+WIRES[i][2]],el:x});}})();
+function nodeV(id,x,y){var f=ext(id,x,y)();return f;}
 function renderSum(){
  if($("main").className.indexOf("sumopen")<0)return;
- var i,c;
+ var i,c,sh=SH.ctrl;
  for(i=0;i<DEVN.length;i++){c="dev"+(S.relay[DEVN[i].n]?" on":"")+(SELR===DEVN[i].n?" sel":"");if(DEVN[i].el.className!==c)DEVN[i].el.className=c;}
- for(i=0;i<WRN.length;i++){var nd=WRN[i].node;c="wire"+(nd!==undefined&&!FLO[nd]&&V[nd]>14?" on":"");if(WRN[i].el.className!==c)WRN[i].el.className=c;}
- var h="Реверсор: <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b><br>ГРК: <b>"+grkInt()+(onPos()?" (на позиции)":" (между позициями)")+"</b><br>СД: "+(S.relay["СД"]&&S.relay["ОВ СД"]?"<span class='c-ok'>крутится</span>":"стоит")+"<br>РН/РН2 (КС): "+(S.env["КС"]?"<span class='c-ok'>вкл</span>":"<span class='c-no'>выкл</span>")+"<br>РП: "+(S.rp?"<span class='c-no'>сработало</span>":"норма")+"<br>Двери (РС): "+(S.env["Двери"]?"<span class='c-no'>открыты</span>":"закрыты");
+ if(ACT.id==="ctrl")for(i=0;i<WRN.length;i++){var nd=WRN[i].node;c="wire"+(nd!==undefined&&!sh.FLO[nd]&&sh.V[nd]>14?" on":"");if(WRN[i].el.className!==c)WRN[i].el.className=c;}
+ var v31=nodeV("lv1",300,160),v35=nodeV("lv1",420,210);
+ var amp=0;for(i=0;i<SH.lv1.EL.length;i++)if(SH.lv1.EL[i].k==="am")amp=SH.lv1.IE[i];
+ var h="Реверсор: <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b><br>ГРК: <b>"+grkInt()+(onPos()?" (на позиции)":" (между позициями)")+"</b><br>СД: "+(S.relay["СД"]&&S.relay["ОВ СД"]?"<span class='c-ok'>крутится</span>":"стоит")
+  +"<br>Контактная сеть: "+(S.env["КС"]?"<span class='c-ok'>550 В</span>":"<span class='c-no'>нет</span>")
+  +"<br>БПН: "+(S.relay["БПН"]?"<span class='c-ok'>работает</span>":"<span class='c-no'>не работает</span>")
+  +"<br>Провод 31: <b>"+(v31===null?"—":fmtV(v31)+" В")+"</b>, 35: <b>"+(v35===null?"—":fmtV(v35)+" В")+"</b>"
+  +"<br>Батарея: "+(amp>0.01?"заряжается "+fmtI(amp)+" А":amp<-0.01?"<span class='c-no'>разряжается "+fmtI(amp)+" А</span>":"без тока")
+  +"<br>Давление: <b>"+S.press.toFixed(1).replace(".",",")+" атм</b> · компрессор "+(S.relay["МК"]?"<span class='c-ok'>работает</span>":"стоит")
+  +"<br>РП: "+(S.rp?"<span class='c-no'>сработало</span>":"норма")+"<br>Двери: "+(S.env["Двери"]?"<span class='c-no'>открыты</span>":"закрыты");
  if($("sumst")._h!==h){$("sumst")._h=h;$("sumst").innerHTML=h;}
 }
 function setSum(on){$("main").className=on?"sumopen":"";$("bSum").className="tb"+(on?" on":"");try{localStorage.setItem("lm68m_sum",on?"1":"0");}catch(e){}renderSum();}
 tap($("bSum"),function(){setSum($("main").className.indexOf("sumopen")<0);});
+
 /* --- кнопки сверху --- */
 tap($("menuBtn"),function(){var s=$("side");s.className=s.className==="open"?"":"open";});
-tap($("view"),function(){var s=$("side");if(s.className==="open")s.className="";if(window.innerWidth<=760&&$("main").className.indexOf("sumopen")>=0)setSum(false);});
+tap(view,function(ev){var s=$("side");if(s.className==="open")s.className="";if(window.innerWidth<=760&&$("main").className.indexOf("sumopen")>=0)setSum(false);onSvgTap(ev);});
 tap($("bVM"),function(){VM=!VM;VMA=null;this.className="tb"+(VM?" on":"");$("vm").style.display=VM?"block":"none";$("vm").textContent="Вольтметр: тапни первую точку схемы";});
 tap($("bEl"),function(){ELEC=!ELEC;this.textContent=ELEC?"Электроны: −→+":"Ток: +→−";paint();});
 var anim=true;$("bAn").className="tb on";
-tap($("bAn"),function(){anim=!anim;this.className="tb"+(anim?" on":"");svg.setAttribute("class",anim?"":"noanim");});
-tap($("bUI"),function(){showUI=!showUI;this.className="tb"+(showUI?" on":"");gUI.setAttribute("style",showUI?"":"display:none");paint();});
-
+tap($("bAn"),function(){anim=!anim;this.className="tb"+(anim?" on":"");view.className=anim?"":"noanim";});
+tap($("bUI"),function(){showUI=!showUI;this.className="tb"+(showUI?" on":"");for(var i=0;i<SHEETS.length;i++)SHEETS[i].gUI.setAttribute("style",showUI?"":"display:none");paint();});
 (function(){var box=$("vw2"),ids=[["bEl","Направление тока"],["bAn","Анимация тока"],["bUI","Подписи U и I"]];
  for(var i=0;i<ids.length;i++)(function(id,t){var d=document.createElement("div");d.className="tg";d.innerHTML="<span>"+t+"</span><b></b>";
   var sync=function(){var on=id==="bEl"?ELEC:id==="bAn"?anim:showUI;d.className="tg"+(on?" on":"");d.getElementsByTagName("b")[0].textContent=id==="bEl"?(ELEC?"−→+":"+→−"):(on?"вкл":"выкл");};
   tap(d,function(){$(id).click();sync();});box.appendChild(d);sync();})(ids[i][0],ids[i][1]);})();
+
 /* --- масштаб --- */
-var view=$("view"),Z=1;
-function fitZ(){return Math.max(0.2,(view.clientWidth-4)/VW);}
+function fitZ(){return Math.max(0.2,(view.clientWidth-4)/ACT.W);}
 function setZ(z,cx,cy){
+ var sh=ACT,Z=sh.Z||1;
  z=Math.max(fitZ()*0.6,Math.min(3,z));
  if(cx===undefined){cx=view.clientWidth/2;cy=view.clientHeight/2;}
  var sx=(view.scrollLeft+cx)/Z,sy=(view.scrollTop+cy)/Z;
- Z=z;svg.setAttribute("width",Math.round(VW*Z));svg.setAttribute("height",Math.round(VH*Z));
- view.scrollLeft=sx*Z-cx;view.scrollTop=sy*Z-cy;
+ sh.Z=z;sh.svg.setAttribute("width",Math.round(sh.W*z));sh.svg.setAttribute("height",Math.round(sh.H*z));
+ view.scrollLeft=sx*z-cx;view.scrollTop=sy*z-cy;
 }
-tap($("zp"),function(){setZ(Z*1.3);});
-tap($("zm"),function(){setZ(Z/1.3);});
+function setSheet(id){
+ var sh=SH[id];if(!sh)return;
+ if(ACT&&ACT.svg){ACT.svg.style.display="none";ACT.sl=view.scrollLeft;ACT.st=view.scrollTop;}
+ ACT=sh;sh.svg.style.display="block";
+ if(!sh.Z){sh.Z=1;setZ(fitZ());if(view.clientWidth<760)setZ(Math.min(1,fitZ()*2.2),0,0);view.scrollLeft=0;view.scrollTop=0;}
+ else{sh.svg.setAttribute("width",Math.round(sh.W*sh.Z));sh.svg.setAttribute("height",Math.round(sh.H*sh.Z));view.scrollLeft=sh.sl||0;view.scrollTop=sh.st||0;}
+ SEL=null;VMA=null;buildDyn();render();
+ try{localStorage.setItem("lm68m_sheet",id);}catch(e){}
+}
+tap($("zp"),function(){setZ(ACT.Z*1.3);});
+tap($("zm"),function(){setZ(ACT.Z/1.3);});
 tap($("zf"),function(){setZ(fitZ());view.scrollLeft=0;view.scrollTop=0;});
-// щипок: iOS (gesture*) и остальные (два пальца)
-var g0=1,gx=0,gy=0,pinch=false;
-function gBegin(cx,cy){g0=Z;var r=view.getBoundingClientRect();gx=cx-r.left;gy=cy-r.top;pinch=true;}
-function gMove(s){var t="scale("+s+")";svg.style.webkitTransformOrigin=(view.scrollLeft+gx)+"px "+(view.scrollTop+gy)+"px";svg.style.transformOrigin=svg.style.webkitTransformOrigin;svg.style.webkitTransform=t;svg.style.transform=t;}
-function gEnd(s){svg.style.webkitTransform="";svg.style.transform="";pinch=false;setZ(g0*s,gx,gy);}
-var lastS=1;
+var g0=1,gx=0,gy=0,pinch=false,lastS=1;
+function gBegin(cx,cy){g0=ACT.Z;var r=view.getBoundingClientRect();gx=cx-r.left;gy=cy-r.top;pinch=true;}
+function gMove(s){var sv=ACT.svg,t="scale("+s+")";sv.style.webkitTransformOrigin=(view.scrollLeft+gx)+"px "+(view.scrollTop+gy)+"px";sv.style.transformOrigin=sv.style.webkitTransformOrigin;sv.style.webkitTransform=t;sv.style.transform=t;}
+function gEnd(s){var sv=ACT.svg;sv.style.webkitTransform="";sv.style.transform="";pinch=false;setZ(g0*s,gx,gy);}
 if("ongesturestart" in window){
  view.addEventListener("gesturestart",function(e){e.preventDefault();lastS=1;gBegin(e.clientX||view.clientWidth/2,e.clientY||view.clientHeight/2);},false);
  view.addEventListener("gesturechange",function(e){e.preventDefault();lastS=e.scale;gMove(e.scale);},false);
@@ -794,20 +1036,22 @@ if("ongesturestart" in window){
  view.addEventListener("touchstart",function(e){if(e.touches.length===2){d0=dist(e.touches);lastS=1;gBegin((e.touches[0].clientX+e.touches[1].clientX)/2,(e.touches[0].clientY+e.touches[1].clientY)/2);}},{passive:true});
  view.addEventListener("touchmove",function(e){if(pinch&&e.touches.length===2){e.preventDefault();lastS=dist(e.touches)/d0;gMove(lastS);}},{passive:false});
  view.addEventListener("touchend",function(e){if(pinch&&e.touches.length<2)gEnd(lastS);},{passive:true});
- view.addEventListener("wheel",function(e){if(e.ctrlKey){e.preventDefault();var r=view.getBoundingClientRect();setZ(Z*(e.deltaY<0?1.1:1/1.1),e.clientX-r.left,e.clientY-r.top);}},{passive:false});
+ view.addEventListener("wheel",function(e){if(e.ctrlKey){e.preventDefault();var r=view.getBoundingClientRect();setZ(ACT.Z*(e.deltaY<0?1.1:1/1.1),e.clientX-r.left,e.clientY-r.top);}},{passive:false});
 }
 document.addEventListener("gesturestart",function(e){e.preventDefault();},false);
 
 buildUI();
 (function(){var on=false;try{on=localStorage.getItem("lm68m_sum")==="1";}catch(e){}if(on&&window.innerWidth>760)setSum(true);})();
-Z=1;setZ(fitZ());
-if(view.clientWidth<760)setZ(Math.min(1,fitZ()*2.2),0,0);
+settle(true);
+(function(){var id="ctrl";try{id=localStorage.getItem("lm68m_sheet")||"ctrl";}catch(e){}if(!SH[id])id="ctrl";ACT=null;setSheet(id);})();
 update();
-window.addEventListener("resize",function(){if(Z<fitZ())setZ(fitZ());},false);
+window.addEventListener("resize",function(){if(ACT.Z<fitZ())setZ(fitZ());},false);
 var last=Date.now();
-setInterval(function(){var now=Date.now(),dt=Math.min(0.3,(now-last)/1000);last=now;var b=lastSig+S.grk.toFixed(2);tick(dt);render();if(curInfo!==null&&b!==lastSig+S.grk.toFixed(2))refreshInfo();},120);
-window.__S=S;window.__EL=EL;window.__V=V;window.__IE=IE;
+var lastKey="";
+setInterval(function(){var now=Date.now(),dt=Math.min(0.3,(now-last)/1000);last=now;tick(dt);render();var k=grkInt()+"|"+S.press.toFixed(1);for(var i=0;i<SHEETS.length;i++)k+=SHEETS[i].lastSig;if(k!==lastKey){lastKey=k;if(curInfo)refreshInfo();}},150);
+window.__S=S;window.__SH=SH;
 })();
+
 </script>
 </body>
 </html>
