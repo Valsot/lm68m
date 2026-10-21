@@ -181,7 +181,7 @@ var SWDEF={"ВУ-1":1,"ВУ-2":1,"ВУ-3":1,"РУМ":1,"В2":1,"В34":1,"В35":1
 var BTDEF={"ПБ":1};
 var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,sw:{},bt:{},
  env:{"КС":true,"Двери":false,"Перегрузка":false},
- rp:false,relay:{},tdrop:{},speed:0,press:4.6,ak:true,flash:false,fl:0,v:0,phi:{1:0,2:0},F:0,dist:0};
+ rp:false,relay:{},tdrop:{},speed:0,tpH:1,press:4.6,ak:true,flash:false,fl:0,v:0,phi:{1:0,2:0},F:0,dist:0};
 
 /* ===================== Листы и построение ===================== */
 var SHEETS=[],SH={},CS=null,C_EMF=20;
@@ -1471,6 +1471,22 @@ W(1577,1156,1598,1156); CO("ТР2",1598,1156,1635,1156,4,"ТР2",28,{bw:37,bh:76
 W(1577,1156,1577,1217); W(1577,1217,1655,1217); CO("ТР3",1655,1217,1694,1217,4,"ТР3",28,{bw:39,bh:76}); W(1694,1217,1760,1217);
 W(1760,1015,1760,1083); W(1760,1083,1760,1156); W(1760,1156,1760,1217); W(1760,1217,1760,1280); FIX(1760,1280,function(){return 0;});
 T("Схема замыкания кулачков РК в силовой цепи — предположение, сверь с таблицей замыканий ГРК",330,1290,"snote");
+// анимированный токоприёмник (ромб с постоянной длиной сторон)
+CS.extra=function(sh,gBg,gS,gT){
+ var g=mk("g",{},gS);
+ sh.tp={g:g,poly:mk("polygon",{fill:"none","stroke-width":5.5,"stroke-linejoin":"round"},g),
+  shoe:mk("line",{"stroke-width":6,"stroke-linecap":"round"},g),
+  base:mk("circle",{cx:117,cy:149,r:7},g)};
+ drawTP(sh);
+};
+function drawTP(sh){
+ var t=sh.tp;if(!t)return;var h0=S.tpH,e=h0*h0*(3-2*h0);
+ var top=134-e*(134-54),h=149-top,L=83,w=Math.sqrt(Math.max(0,L*L-(h/2)*(h/2))),my=149-h/2;
+ t.poly.setAttribute("points","117,149 "+(117+w).toFixed(1)+","+my.toFixed(1)+" 117,"+top.toFixed(1)+" "+(117-w).toFixed(1)+","+my.toFixed(1));
+ t.shoe.setAttribute("x1",97);t.shoe.setAttribute("x2",137);t.shoe.setAttribute("y1",top.toFixed(1));t.shoe.setAttribute("y2",top.toFixed(1));
+ var live=S.tpH>0.97&&S.env["КС"],col=live?"rgb(255,170,40)":"#c8d1de";
+ t.poly.setAttribute("stroke",col);t.shoe.setAttribute("stroke",col);t.base.setAttribute("fill",col);
+}
 
 /* ===================== Завершение построения листов ===================== */
 function isRes(e){return e.k==="coil"||e.k==="lamp"||e.k==="res"||e.k==="mot"||e.k==="vm"||e.k==="blk";}
@@ -1531,6 +1547,7 @@ function relayOn(n){
 function cond(c){
  if(!c)return true;
  if(c.charAt(0)==="!")return !cond(c.substr(1));
+ if(c==="ТП")return S.tpH>0.97;
  if(c.indexOf("KV:")===0)return inList(c.substr(3),S.kv);
  if(c.indexOf("REV:")===0)return S.rev===c.substr(4);
  if(c.indexOf("РК:")===0)return rkClosed(c.substr(3),grkInt());
@@ -1727,6 +1744,7 @@ function buildSheet(sh){
  }
  for(i=0;i<sh.LBL.length;i++){var L0=sh.LBL[i];var tt=mk("text",{x:L0.x,y:L0.y,"class":L0.cls,"text-anchor":(L0.cls.indexOf("wlb")===0&&L0.x>=540&&L0.x<=570)?"end":"start"},gT);tt.textContent=L0.t;}
  for(i=0;i<sh.EL.length;i++)buildEl(sh,sh.EL[i],gW,gF,gS,gT,gUI);
+ if(sh.extra)sh.extra(sh,gBg,gS,gT);
  sh.JD=[];for(var ni=0;ni<sh.N;ni++){if(sh.NP[ni].deg>=3)sh.JD.push({n:ni,c:mk("circle",{cx:sh.NP[ni].x,cy:sh.NP[ni].y,r:sh.img?sh.lw+1.5:4},gS)});}
  if(!sh.img)for(i=0;i<sh.fx.length;i++){var f=sh.fx[i];mk("circle",{cx:f.x,cy:f.y,r:5,fill:"none",stroke:"#ff8a8a","stroke-width":2},gS);}
  for(i=0;i<sh.EL.length;i++){var he=sh.EL[i];if(he.k==="link")continue;
@@ -1740,7 +1758,7 @@ function buildOv(sh,e,gW,gF,gS,gT,gUI){
  R.fl=mk("path",{d:"M"+e.x1+" "+e.y1+"L"+e.x2+" "+e.y2,"class":"fl"},gF);
  if(e.k==="w")return;
  var k=e.k;R.ov=true;
- if(k==="k"||k==="dr"||k==="sw"||k==="bt"||k==="fu"||k==="am"){
+ if((k==="k"||k==="dr"||k==="sw"||k==="bt"||k==="fu"||k==="am")&&e.c!=="ТП"){
   R.cb=mk("line",{x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2,"stroke-width":lw+1.5,stroke:"#f2d33d","stroke-linecap":"round"},gW);
   R.sel=mk("rect",{x:Math.min(e.x1,e.x2)-12,y:Math.min(e.y1,e.y2)-12,width:Math.abs(e.x2-e.x1)+24,height:Math.abs(e.y2-e.y1)+24,rx:6,fill:"none",stroke:"#6fb6ff","stroke-width":3,style:"display:none"},gS);
   if(k==="am"||k==="fu")R.cb.setAttribute("stroke-width",lw);
@@ -2126,6 +2144,7 @@ function play(n,vol,gap,delay){
 }
 var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ"];
 function sndWatch(){
+ if(ACT===SH.pow)drawTP(SH.pow);
  var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{}};
  for(var i=0;i<SND_KON.length;i++)cur.k[SND_KON[i]]=!!S.relay[SND_KON[i]];
  var p=SND.prev;SND.prev=cur;if(!p)return;
@@ -2137,6 +2156,10 @@ function sndWatch(){
  if(offs){play("kon_off",Math.min(1,0.6+0.15*offs),0.05);if(offs>2)play("kon_off",0.5,0,0.03);}
  if(cur.vt&&!p.vt)play("air",0.9,0.8,0.05);
 }
+
+setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tpH>0.97;
+ S.tpH+=(tg>S.tpH?1:-1)*(tg?0.045:0.07);if(S.tpH>1)S.tpH=1;if(S.tpH<0)S.tpH=0;
+ drawTP(SH.pow);if((S.tpH>0.97)!==was){if(S.tpH>0.97)play("kon_on",0.5);update();}},40);
 
 /* ===================== Интерфейс ===================== */
 function tap(node,fn){node.addEventListener("click",fn,false);}
