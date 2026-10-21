@@ -2167,7 +2167,11 @@ function sndWatch(){
  for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]!==p.k[n]){play2(cur.k[n]?"kon_on":"kon_off",0.75,1,nk*0.045+Math.random()*0.015);nk++;}}
  for(i=0;i<SND_REL.length;i++){n=SND_REL[i];if(cur.r[n]!==p.r[n]&&nr<4){play2("grk",0.3,cur.r[n]?1.6:1.4,0.02+nr*0.03+Math.random()*0.02);nr++;}}
  if(cur.rp&&!p.rp)play2("kon_off",1,0.8,0);
- if(cur.vt&&!p.vt)play("air",0.9,0.8,0.05);
+ // пневматика: только на отпуск тормоза (ВТ получили питание и держат его), без звука при наложении
+ var now=Date.now();
+ if(!cur.vt){if(p.vt||!SND.vtOff)SND.vtOff=now;SND.vtOn=0;}
+ else if(!p.vt){SND.vtOn=now;SND.vtWas=SND.vtOff?now-SND.vtOff:99999;SND.airDone=false;}
+ if(cur.vt&&!SND.airDone&&SND.vtOn&&now-SND.vtOn>=350){SND.airDone=true;if(SND.vtWas>=1000)play("air",0.9,0.8,0);}
 }
 setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tpH>0.97;
  S.tpH+=(tg>S.tpH?1:-1)*(tg?0.045:0.07);if(S.tpH>1)S.tpH=1;if(S.tpH<0)S.tpH=0;
