@@ -112,7 +112,8 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
  .tb{padding:6px 8px;font-size:12px}
  #legend{display:none}
  #quick{display:block!important}
- #bEl,#bAn,#bUI,#zm,#zp{display:none}
+ #bEl,#bAn,#bUI,#zm,#zp,#bVM,#bRef,#zf{display:none}
+ #view2 .btn{width:49%;margin-right:2%}#view2 .btn:nth-child(2n){margin-right:0}
  #view2{display:block!important}
  .tab .fu{display:none}
  .tab .sh{display:inline}
@@ -131,6 +132,7 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
   <button class="tb" id="menuBtn">☰ Пульт</button>
   <div id="status"></div>
   <div id="grk"></div>
+  <button class="tb" id="bSnd">Звук</button>
   <button class="tb" id="bRef">Справка</button>
   <button class="tb" id="bSum">Сводка</button>
   <button class="tb" id="bVM" title="Вольтметр: тапни две точки схемы">Вольтметр</button>
@@ -2095,6 +2097,47 @@ function buildRef(){
 }
 var infoFor0=infoFor;infoFor=function(e){return refHeader(e)+infoFor0(e);};
 
+/* ===================== Звуки ===================== */
+var SND={on:true,ctx:null,buf:{},last:{},unlocked:false,prev:null};
+try{if(localStorage.getItem("lm68m_snd")==="0")SND.on=false;}catch(e){}
+function sndInit(){
+ if(SND.ctx)return;
+ var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+ SND.ctx=new AC();
+ var names=["grk","kon_on","kon_off","rev","air"];
+ for(var i=0;i<names.length;i++)(function(n){
+  var x=new XMLHttpRequest();x.open("GET","snd/"+n+".mp3",true);x.responseType="arraybuffer";
+  x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;},function(){});}catch(e){}};
+  x.send();})(names[i]);
+}
+function sndUnlock(){
+ sndInit();if(!SND.ctx||SND.unlocked)return;
+ try{var b=SND.ctx.createBuffer(1,1,22050),s=SND.ctx.createBufferSource();s.buffer=b;s.connect(SND.ctx.destination);if(s.start)s.start(0);else s.noteOn(0);
+  if(SND.ctx.resume)SND.ctx.resume();SND.unlocked=true;}catch(e){}
+}
+document.addEventListener("touchend",sndUnlock,false);document.addEventListener("click",sndUnlock,false);
+function play(n,vol,gap,delay){
+ if(!SND.on||!SND.ctx||!SND.buf[n])return;
+ var now=SND.ctx.currentTime;gap=gap||0.06;
+ if(SND.last[n]&&now-SND.last[n]<gap)return;SND.last[n]=now;
+ try{var s=SND.ctx.createBufferSource(),g=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();
+  s.buffer=SND.buf[n];s.playbackRate.value=0.94+Math.random()*0.12;g.gain.value=vol===undefined?1:vol;
+  s.connect(g);g.connect(SND.ctx.destination);var t=now+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
+}
+var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ"];
+function sndWatch(){
+ var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{}};
+ for(var i=0;i<SND_KON.length;i++)cur.k[SND_KON[i]]=!!S.relay[SND_KON[i]];
+ var p=SND.prev;SND.prev=cur;if(!p)return;
+ if(cur.grk!==p.grk)play("grk",0.8,0.05);
+ if(cur.rev!==p.rev)play("rev",0.9,0.2);
+ var ons=0,offs=0;
+ for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]&&!p.k[n])ons++;else if(!cur.k[n]&&p.k[n])offs++;}
+ if(ons){play("kon_on",Math.min(1,0.6+0.15*ons),0.05);if(ons>2)play("kon_on",0.5,0,0.035);}
+ if(offs){play("kon_off",Math.min(1,0.6+0.15*offs),0.05);if(offs>2)play("kon_off",0.5,0,0.03);}
+ if(cur.vt&&!p.vt)play("air",0.9,0.8,0.05);
+}
+
 /* ===================== Интерфейс ===================== */
 function tap(node,fn){node.addEventListener("click",fn,false);}
 var info=$("info"),curInfo=null;
@@ -2150,7 +2193,7 @@ function render(){
  var st="<b>"+Math.round(Math.abs(S.v)*3.6)+" км/ч</b> · КВ <b>"+S.kv+"</b> · ГРК <b>"+gi+(onPos()?"":"→"+(gi%17+1))+"</b>"+(S.relay["СД"]&&S.relay["ОВ СД"]?" · <span class='c-ok'>СД крутится</span>":"")+(S.rp?" · <span class='c-no'>РП</span>":"");
  if($("status")._h!==st){$("status")._h=st;$("status").innerHTML=st;}
  for(i=0;i<SHEETS.length;i++){var cc="tb tab"+(SHEETS[i]===ACT?" on":"");if(SHEETS[i].tab.className!==cc)SHEETS[i].tab.className=cc;}
- paint();renderSum();
+ paint();renderSum();sndWatch();
 }
 function update(){settle(true);render();refreshInfo();}
 
@@ -2180,6 +2223,8 @@ function renderSum(){
  if($("sumst")._h!==h){$("sumst")._h=h;$("sumst").innerHTML=h;}
 }
 function setSum(on){$("main").className=on?"sumopen":"";$("bSum").className="tb"+(on?" on":"");try{localStorage.setItem("lm68m_sum",on?"1":"0");}catch(e){}renderSum();}
+function sndBtn(){$("bSnd").className="tb"+(SND.on?" on":"");$("bSnd").textContent=SND.on?"Звук":"Звук выкл";}
+sndBtn();tap($("bSnd"),function(){SND.on=!SND.on;try{localStorage.setItem("lm68m_snd",SND.on?"1":"0");}catch(e){}sndUnlock();sndBtn();});
 tap($("bRef"),function(){var r=$("ref");if(!r.firstChild)buildRef();r.style.display=r.style.display==="block"?"none":"block";});
 tap($("bSum"),function(){setSum($("main").className.indexOf("sumopen")<0);});
 
@@ -2194,7 +2239,9 @@ tap($("bUI"),function(){showUI=!showUI;this.className="tb"+(showUI?" on":"");for
 (function(){var box=$("vw2"),ids=[["bEl","Направление тока"],["bAn","Анимация тока"],["bUI","Подписи U и I"]];
  for(var i=0;i<ids.length;i++)(function(id,t){var d=document.createElement("div");d.className="tg";d.innerHTML="<span>"+t+"</span><b></b>";
   var sync=function(){var on=id==="bEl"?ELEC:id==="bAn"?anim:showUI;d.className="tg"+(on?" on":"");d.getElementsByTagName("b")[0].textContent=id==="bEl"?(ELEC?"−→+":"+→−"):(on?"вкл":"выкл");};
-  tap(d,function(){$(id).click();sync();});box.appendChild(d);sync();})(ids[i][0],ids[i][1]);})();
+  tap(d,function(){$(id).click();sync();});box.appendChild(d);sync();})(ids[i][0],ids[i][1]);
+ var row=document.createElement("div");box.appendChild(row);
+ mkBtn(row,"Справка",function(){$("side").className="";$("bRef").click();});mkBtn(row,"Вольтметр",function(){$("side").className="";$("bVM").click();});mkBtn(row,"Масштаб ⤢",function(){$("side").className="";$("zf").click();});})();
 
 /* --- масштаб --- */
 function fitZ(){return Math.max(0.2,(view.clientWidth-4)/ACT.W);}
