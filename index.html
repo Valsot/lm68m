@@ -2147,21 +2147,28 @@ function play(n,vol,gap,delay){
   s.buffer=SND.buf[n];s.playbackRate.value=0.94+Math.random()*0.12;g.gain.value=vol===undefined?1:vol;
   s.connect(g);g.connect(SND.ctx.destination);var t=now+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
 }
-var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ"];
+var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ","КМГ","КОС","КО1","КО2","КАС1","КАС2","ВПЕРЁД","НАЗАД"];
+var SND_REL=["РХ","РРТ1","РРТ2","РР","РОВ","СР","РТ","РВВ2","РВЗ","РН","РН2","Возврат РП","РУТ-3","РС","РСП","ВТ1","ВТ2","ВД1","ВД2","ВД3","Ш2"];
+function play2(n,vol,rate,delay){
+ if(!SND.on||!SND.ctx||!SND.buf[n])return;
+ try{var s=SND.ctx.createBufferSource(),g=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();
+  s.buffer=SND.buf[n];s.playbackRate.value=rate*(0.95+Math.random()*0.1);g.gain.value=vol;
+  s.connect(g);g.connect(SND.ctx.destination);var t=SND.ctx.currentTime+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
+}
 function sndWatch(){
  if(ACT===SH.pow)drawTP(SH.pow);
- var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{}};
- for(var i=0;i<SND_KON.length;i++)cur.k[SND_KON[i]]=!!S.relay[SND_KON[i]];
+ var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{},r:{},rp:S.rp};
+ var i;for(i=0;i<SND_KON.length;i++)cur.k[SND_KON[i]]=!!S.relay[SND_KON[i]];
+ for(i=0;i<SND_REL.length;i++)cur.r[SND_REL[i]]=!!S.relay[SND_REL[i]];
  var p=SND.prev;SND.prev=cur;if(!p)return;
  if(cur.grk!==p.grk)play("grk",0.8,0.05);
  if(cur.rev!==p.rev)play("rev",0.9,0.2);
- var ons=0,offs=0;
- for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]&&!p.k[n])ons++;else if(!cur.k[n]&&p.k[n])offs++;}
- if(ons){play("kon_on",Math.min(1,0.6+0.15*ons),0.05);if(ons>2)play("kon_on",0.5,0,0.035);}
- if(offs){play("kon_off",Math.min(1,0.6+0.15*offs),0.05);if(offs>2)play("kon_off",0.5,0,0.03);}
+ var nk=0,nr=0;
+ for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]!==p.k[n]){play2(cur.k[n]?"kon_on":"kon_off",0.75,1,nk*0.045+Math.random()*0.015);nk++;}}
+ for(i=0;i<SND_REL.length;i++){n=SND_REL[i];if(cur.r[n]!==p.r[n]&&nr<4){play2("grk",0.3,cur.r[n]?1.6:1.4,0.02+nr*0.03+Math.random()*0.02);nr++;}}
+ if(cur.rp&&!p.rp)play2("kon_off",1,0.8,0);
  if(cur.vt&&!p.vt)play("air",0.9,0.8,0.05);
 }
-
 setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tpH>0.97;
  S.tpH+=(tg>S.tpH?1:-1)*(tg?0.045:0.07);if(S.tpH>1)S.tpH=1;if(S.tpH<0)S.tpH=0;
  drawTP(SH.pow);if((S.tpH>0.97)!==was){if(S.tpH>0.97)play("kon_on",0.5);update();}},40);
