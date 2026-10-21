@@ -123,7 +123,11 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
 #quick{display:none;-webkit-flex-basis:100%;flex-basis:100%;margin-top:4px}
 #quick .btn{width:9.2%;padding:7px 0;margin-right:.8%;display:inline-block;font-size:12px}
 #quick .rv{width:32.5%;margin-right:.8%}
-#view2{display:none}
+#view2{display:block}
+.grkset{background:#222a39;border-radius:7px;padding:6px 8px;margin-bottom:4px;font-size:12px}
+.grkset input{width:100%;margin:6px 0}
+.row2 .btn{width:49%;margin-right:2%;font-size:12px}.row2 .btn:nth-child(2n){margin-right:0}
+#view2 .grkset .btn{width:100%;margin-right:0;font-size:12px;padding:5px 0}
 </style>
 </head>
 <body>
@@ -181,7 +185,7 @@ var SWDEF={"ВУ-1":1,"ВУ-2":1,"ВУ-3":1,"РУМ":1,"В2":1,"В34":1,"В35":1
 var BTDEF={"ПБ":1};
 var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,sw:{},bt:{},
  env:{"КС":true,"Двери":false,"Перегрузка":false},
- rp:false,relay:{},tdrop:{},speed:0,tpH:1,press:4.6,ak:true,flash:false,fl:0,v:0,phi:{1:0,2:0},F:0,dist:0};
+ rp:false,relay:{},tdrop:{},speed:0,tpH:1,grkRate:3.4,press:4.6,ak:true,flash:false,fl:0,v:0,phi:{1:0,2:0},F:0,dist:0};
 
 /* ===================== Листы и построение ===================== */
 var SHEETS=[],SH={},CS=null,C_EMF=20;
@@ -1404,7 +1408,7 @@ W(1082,233,1082,272); W(1082,272,680,272); W(680,272,680,803); W(680,803,1046,80
 // линейные контакторы, пусковые резисторы
 W(117,377,117,485); K("ЛК4",117,485,117,502); W(117,502,117,590); W(117,590,158,590); K("ЛК1",158,590,174,590); W(174,590,221,590);
 W(221,590,221,528); W(221,528,411,528); K("Р",411,528,428,528); W(428,528,653,528); W(653,528,653,654); W(653,654,653,706);
-W(221,590,242,590); K("РКЭ:6",242,590,253,590,"РК6"); W(253,590,308,590); RE("Пусковой",0.15,308,590,361,590,""); W(361,590,366,590);
+W(221,590,242,590); K("РКЭ:6",242,590,253,590,"РК6"); W(253,590,308,590); RE("Пусковой",0.5,308,590,361,590,""); W(361,590,366,590);
 W(366,590,426,590); W(426,590,477,590); W(477,590,533,590); W(533,590,580,590); W(580,590,580,654);
 W(221,590,221,622); K("РКЭ:7",221,622,221,630,"РК7"); W(221,630,221,654); W(221,654,310,654);
 RE("Пусковой",1.6,310,654,366,654,""); RE("Пусковой",1.2,366,654,426,654,""); RE("Пусковой",1.0,426,654,477,654,""); RE("Пусковой",0.8,477,654,533,654,""); RE("Пусковой",0.6,533,654,580,654,"");
@@ -1525,7 +1529,7 @@ function finalize(sh){
 }
 for(var si=0;si<SHEETS.length;si++)finalize(SHEETS[si]);
 var ORDER=["pow","aux","lv","ctrl"];
-var RKMAP={1:"3-17",2:"5-17",3:"7-17",4:"9-17",5:"2-17",6:"12-17",7:"1-17",8:"1-17",9:"2-9",10:"4-9",11:"6-9",12:"8-9",13:"2-9",14:"4-9",15:"6-9",16:"8-9",17:"17",18:"16-17",19:"15-17",20:"17",21:"16-17",22:"15-17"};
+var RKMAP={1:"3-17",2:"5-17",3:"7-17",4:"9-17",5:"2-17",6:"11-17",7:"1-17",8:"1-17",9:"2-9",10:"4-9",11:"6-9",12:"8-9",13:"2-9",14:"4-9",15:"6-9",16:"8-9",17:"17",18:"16-17",19:"15-17",20:"17",21:"16-17",22:"15-17"};
 var ELN={};(function(){var sh=SH.pow;for(var i=0;i<sh.EL.length;i++){var e=sh.EL[i];if(e.n)(ELN[e.n]=ELN[e.n]||[]).push(e);}})();
 function curI(n){var L=ELN[n],m=0;if(!L)return 0;for(var i=0;i<L.length;i++){var a=Math.abs(L[i].sh.IE[L[i].i]);if(a>m)m=a;}return m;}
 function rutSet(){return S.kv==="Х1"?110:S.kv==="Х2"?140:S.kv==="Х3"?170:160;}
@@ -1680,8 +1684,8 @@ function physics(dt){
  var sh=SH.pow,i,F=0;
  function I(n){var L=ELN[n];return L?sh.IE[L[0].i]:0;}
  var k=Math.min(1,dt*2.5);
- var t1=Math.min(1.4,(Math.abs(I("ШОВ1"))+Math.abs(I("ШОВ3")))/12+(Math.abs(I("СОВ1"))+Math.abs(I("СОВ3")))/440);
- var t2=Math.min(1.4,(Math.abs(I("ШОВ2"))+Math.abs(I("ШОВ4")))/12+(Math.abs(I("СОВ2"))+Math.abs(I("СОВ4")))/440);
+ var t1=Math.min(1.4,(Math.abs(I("ШОВ1"))+Math.abs(I("ШОВ3")))/24+(Math.abs(I("СОВ1"))+Math.abs(I("СОВ3")))/300);
+ var t2=Math.min(1.4,(Math.abs(I("ШОВ2"))+Math.abs(I("ШОВ4")))/24+(Math.abs(I("СОВ2"))+Math.abs(I("СОВ4")))/300);
  S.phi[1]+=(t1-S.phi[1])*k;S.phi[2]+=(t2-S.phi[2])*k;
  F=C_EMF*(S.phi[1]*(I("ТЭД1")+I("ТЭД3"))+S.phi[2]*(I("ТЭД2")+I("ТЭД4")));
  S.F=F;
@@ -1694,7 +1698,8 @@ function physics(dt){
 function tick(dt){
  physics(dt);
  for(var t in TIMED){if(S.relay[t]&&coilFrac(t)<0.29){S.tdrop[t]-=dt;}}
- if(S.relay["СД"]&&S.relay["ОВ СД"]){var p=S.grk+dt*2.2;if(p>=18)p-=17;S.grk=p;}
+ var GRKRATE=S.grkRate||3.4,nsub=Math.max(1,Math.ceil(dt*GRKRATE/0.12));
+ for(var su=0;su<nsub;su++){if(S.relay["СД"]&&S.relay["ОВ СД"]){var p=S.grk+dt*GRKRATE/nsub;if(p>=18)p-=17;S.grk=p;if(su<nsub-1)settle(false);}}
  S.press+=S.relay["МК"]?0.09*dt:-0.012*dt;if(S.press<0)S.press=0;if(S.press>7)S.press=7;
  if(S.press<5.0)S.ak=true;if(S.press>6.2)S.ak=false;
  if(S.sw["В46Л"]||S.sw["В46П"]){S.fl+=dt;if(S.fl>0.4){S.fl=0;S.flash=!S.flash;}}else{S.flash=false;S.fl=0;}
@@ -2263,7 +2268,15 @@ tap($("bUI"),function(){showUI=!showUI;this.className="tb"+(showUI?" on":"");for
  for(var i=0;i<ids.length;i++)(function(id,t){var d=document.createElement("div");d.className="tg";d.innerHTML="<span>"+t+"</span><b></b>";
   var sync=function(){var on=id==="bEl"?ELEC:id==="bAn"?anim:showUI;d.className="tg"+(on?" on":"");d.getElementsByTagName("b")[0].textContent=id==="bEl"?(ELEC?"−→+":"+→−"):(on?"вкл":"выкл");};
   tap(d,function(){$(id).click();sync();});box.appendChild(d);sync();})(ids[i][0],ids[i][1]);
- var row=document.createElement("div");box.appendChild(row);
+ var gr=document.createElement("div");gr.className="grkset";box.appendChild(gr);
+ gr.innerHTML="<div>Скорость ГРК: <b id='grkv'></b></div><input type='range' id='grkr' min='0.1' max='2' step='0.01'><div><button class='btn' id='grkd'>Как в записи (0,29 с)</button></div>";
+ var gsync=function(){var sp=1/S.grkRate;$("grkr").value=sp.toFixed(2);$("grkv").textContent=sp.toFixed(2).replace(".",",")+" с на позицию";};
+ try{var sv=parseFloat(localStorage.getItem("lm68m_grk"));if(sv>0.05&&sv<5)S.grkRate=1/sv;}catch(e){}
+ gsync();
+ var gset=function(){var v=parseFloat($("grkr").value);if(v>0.05){S.grkRate=1/v;try{localStorage.setItem("lm68m_grk",String(v));}catch(e){}}gsync();};
+ $("grkr").addEventListener("input",gset,false);$("grkr").addEventListener("change",gset,false);
+ tap($("grkd"),function(){S.grkRate=3.4;try{localStorage.removeItem("lm68m_grk");}catch(e){}gsync();});
+ var row=document.createElement("div");row.className="row2";box.appendChild(row);
  mkBtn(row,"Справка",function(){$("side").className="";$("bRef").click();});mkBtn(row,"Вольтметр",function(){$("side").className="";$("bVM").click();});mkBtn(row,"Масштаб ⤢",function(){$("side").className="";$("zf").click();});})();
 
 /* --- масштаб --- */
