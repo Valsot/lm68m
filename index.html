@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>ЛМ-68М — цепи управления</title>
+<style>
+:root{color-scheme:dark;--bg:#12151b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:#12151b;color:#e9edf3;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px}
+body{padding:8px;background:#12151b}
+@supports (padding:max(1px,2px)){body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:8px;padding-bottom:8px}}
+@media (max-width:900px){.wrap{display:block}.col{width:auto!important;margin:0 0 8px 0}#kv{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap}#kv .btn{width:19%;margin:0 1% 4px 0}}
+h2{font-size:12px;margin:0 0 6px;color:#8b98ab;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.wrap{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:flex-start;align-items:flex-start}
+.col{background:#1a1f29;border-radius:10px;padding:8px;margin-right:8px}
+.col:last-child{margin-right:0}
+#c1{width:170px}#c2{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0}#c3{width:250px}
+.btn{display:block;width:100%;border:0;border-radius:7px;background:#2b3547;color:#e9edf3;font-size:14px;font-weight:700;padding:8px 0;margin:0 0 4px;text-align:center;font-family:inherit}
+.btn.on{background:#f2d33d;color:#1b1a10}
+.btn.kv{padding:6px 0}
+.row{display:-webkit-box;display:-webkit-flex;display:flex}
+.row .btn{margin-right:4px}.row .btn:last-child{margin-right:0}
+.tg{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;background:#222a39;border-radius:7px;padding:6px 8px;margin-bottom:4px;font-size:12px}
+.tg b{display:inline-block;min-width:44px;text-align:center;border-radius:5px;padding:3px 6px;background:#3a4456;font-size:11px}
+.tg.on b{background:#4caf6a;color:#08140c}
+.tg.warn.on b{background:#e05252;color:#fff}
+.hold{background:#3a2f12}
+.dev{display:inline-block;margin:0 4px 4px 0;padding:5px 7px;border-radius:6px;background:#222a39;color:#7d8a9d;font-weight:700;font-size:12px;border:1px solid #2b3547}
+.dev.on{background:#f2d33d;color:#1b1a10;border-color:#f2d33d}
+.dev.sel{outline:2px solid #6fb6ff}
+.wire{display:inline-block;width:34px;margin:0 3px 3px 0;padding:4px 0;border-radius:5px;background:#222a39;color:#5f6b7d;text-align:center;font-weight:700;font-size:12px}
+.wire.on{background:#c8323c;color:#fff}
+#grk{display:-webkit-box;display:-webkit-flex;display:flex;margin:4px 0 8px}
+#grk span{-webkit-box-flex:1;-webkit-flex:1;flex:1;text-align:center;font-size:10px;padding:5px 0;margin-right:2px;background:#222a39;border-radius:3px;color:#7d8a9d}
+#grk span.cur{background:#f2d33d;color:#1b1a10;font-weight:700}
+#grk span.fix{border-bottom:2px solid #6fb6ff}
+#why{font-size:12px;line-height:1.5;background:#151a23;border-radius:7px;padding:8px;min-height:120px}
+.c-ok{color:#5fd27f;font-weight:700}.c-no{color:#ff6b6b;font-weight:700}.c-n{color:#8b98ab}
+.path{margin-bottom:6px}
+.note{font-size:11px;color:#6f7f94;margin-top:6px;line-height:1.4}
+#status{font-size:12px;margin-bottom:6px;color:#b3bfd0}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="col" id="c1">
+  <h2>Реверсор</h2>
+  <div class="row" id="rev"></div>
+  <h2 style="margin-top:6px">Контроллер</h2>
+  <div id="kv"></div>
+ </div>
+ <div class="col" id="c2">
+  <div id="status"></div>
+  <h2>ГРК — позиция</h2>
+  <div id="grk"></div>
+  <h2>Реле и контакторы <span style="text-transform:none;font-weight:400">(нажми — покажу, почему)</span></h2>
+  <div id="devs"></div>
+  <h2 style="margin-top:8px">Провода под напряжением</h2>
+  <div id="wires"></div>
+  <h2 style="margin-top:8px">Почему так</h2>
+  <div id="why">Нажми на любое реле или контактор выше.</div>
+ </div>
+ <div class="col" id="c3">
+  <h2>Выключатели</h2>
+  <div id="sw"></div>
+  <h2 style="margin-top:6px">Кнопки (держать = нажать ещё раз)</h2>
+  <div id="bt"></div>
+  <h2 style="margin-top:6px">Обстановка</h2>
+  <div id="env"></div>
+  <div class="note">Учебная модель по расшифровке схемы. Ток двигателей (РУТ), реле перегрузки и силовая цепь упрощены. Сверяйся с бумажной схемой.</div>
+ </div>
+</div>
+<script>
+(function(){
+"use strict";
+var KVPOS=["ТР","Т4","Т3","Т2","Т1","0","М","Х1","Х2","Х3"];
+var FIX={1:1,9:1,14:1,17:1};
+var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,
+ sw:{"ВУ-1":true,"ВУ-2":true,"ВУ-3":true,"РУМ":true,"В2":true,"ОМ":false},
+ bt:{"ПБ":true,"СЕКВ":false,"ВРП":false,"КН7":false,"ПП":false},
+ env:{"КС":true,"Двери":false,"Перегрузка":false},
+ rp:false,relay:{},tdrop:{}};
+var TIMED={"РРТ1":1.5,"РОВ":1.0,"РВВ2":1.0,"РВЗ":1.0};
+var E=[],C=[];
+function e(a,b,c){E.push({a:a,b:b,c:c||"",d:false});}
+function d(a,b){E.push({a:a,b:b,c:"",d:true});}
+function coil(n,node,cond){C.push({n:n,node:node,cond:cond||[]});}
+// питание
+e("31","35","ВУ-1");e("35","17","Пр2");e("17","K","ВУ-2");
+e("K","k30","Пр30");e("K","k31","Пр31");e("K","k32","Пр32");e("K","k33","Пр33");
+e("k30","n30a","ПБ");e("n30a","4","ВУ-3");
+// реверсор и развёртка
+e("k31","2","REV:Вперёд");e("k31","3","REV:Назад");
+e("k31","25","KV:0,М,Х1,Х2,Х3");e("4","5","KV:М,Х1,Х2,Х3");
+e("K","6","KV:ТР,Т4,Т3,Т2,Т1,М,Х1,Х2,Х3");e("k31","7","KV:ТР,Т4,Т3,Т2");
+e("k33","19","KV:ТР,Т4,Т3");e("K","8","KV:ТР,Т4,Т3,Т2,Т1");
+e("k32","1","KV:ТР,Т4,Х1,Х2,Х3");e("k33","11","KV:Х1,Х2,Х3");e("k33","12","KV:Х1,Х2");
+e("k33","13","KV:ТР,Т4");e("k33","n14x","KV:0");e("n14x","14","ВРП");
+e("k33","n9x","KV:Т3,Т2,Т1,0,М,Х1,Х2,Х3");e("n9x","9","В2");
+e("31","16","KV:ТР");e("k33","nRVZ","KV:ТР,Т4,Т3,Т2,Т1");coil("РВЗ","nRVZ");
+// 2,3
+e("2","n2a","РУМ");coil("ВПЕРЁД","n2a");e("n2a","nB","ВП");
+e("3","n3a","РУМ");coil("НАЗАД","n3a");e("n3a","nB","НАЗ");
+coil("РХ","nB",["!РС","!КРТ"]);coil("РРТ1","nB");
+// 25
+e("25","n25a","ЛК4");coil("ЛК2","n25a",["!РП"]);
+e("n25a","n25b","РК:13-17");e("n25a","n25b","Р");coil("Р","n25b");
+// 4
+coil("РРТ2","4");e("4","n4b","РХ");e("n4b","n4c","!РТ");e("n4c","n4d","!ТБ");coil("ВТ1","n4d");coil("ВТ2","n4d");
+// 5
+e("5","n5a","РУМ");coil("РР","n5a");e("n5a","n5b","РХ");e("n5b","n5c","РН");e("n5c","n5d","РН2");e("n5b","n5d","СЕКВ");
+e("n5d","n5e","!РП");e("n5e","n5f","!Т1");e("n5f","n5g","!Т2");e("n5g","n5h","РК:1");e("n5g","n5h","ЛК1");
+coil("ЛК4","n5h");e("n5h","n5i","ЛК2");coil("ЛК1","n5i");
+// 6,7
+e("6","n6a","РУМ");e("n6a","n6b","!Т2");e("n6a","n6b","!ТБ");e("n6b","n6c","!Р");e("n6b","n6c","!ЛК2");coil("Ш","n6c");coil("Ш1","7");
+// 19
+e("19","n19a","РК:1,2,10-17");e("19","n19a","КТ1");e("19","n19a","КТ2");coil("Ш2","n19a");coil("КТ1","n19a");coil("КТ2","n19a");
+// 8
+e("8","n8a","РУМ");e("n8a","n8b","!РН");coil("ТБ","n8b",["!ОМ"]);coil("ЛК3","n8b");
+e("n8a","n8c","!ЛК1");e("n8a","n8c","!ЛК4");e("n8c","n8d","!ЛК2");coil("Т1","n8d");coil("Т2","n8d");
+e("n8a","n8e","!ЛК3");e("n8e","n8f","!РТ");coil("ВТ1","n8f");coil("ВТ2","n8f");
+// 17, 1 — СД
+e("17","nL","РОВ");coil("ОВ СД","nL");
+e("1","n1a","РУМ");d("n1a","nL");
+e("n1a","n1b","ЛК1");e("n1a","n1b","Т2");e("n1b","n1c","");
+e("n1c","n1x","!СР");e("n1x","n1g","!РУТ");e("n1c","n1g","РКМ1");coil("СД","n1g");
+e("nL","14","КН7");e("14","n1c","КН7");
+e("17","n17a","!ЛК1");e("n17a","n17b","!КТ1");e("n17b","n17c","!КТ2");e("n17c","n17e","РК:2-17");d("n17e","n1b");coil("РОВ","n17e");
+e("n17c","nJ","РК:1");
+// 11,12,13 — СР, РТ
+e("nJ","nZ","ЛК4");e("11","nI","");e("nI","nJ","РК:17");e("nI","nIa","Ш");e("nIa","nJ","РК:13-14");
+e("12","nJ","РК:13-14");e("nJ","nZ","ЛК2");
+e("13","nK","РУМ");e("nK","nKa","РК:8-9");e("nKa","nZ","КТ1");e("nKa","nZ","КТ2");coil("СР","nZ");
+e("nK","nKb","!РВВ2");e("nKb","nM","!РМТ");e("17","n17j","РУМ");e("n17j","nM","РТ");coil("РТ","nM");
+// 14, 9, 16, 31, 16/17
+coil("Возврат РП","14");coil("РВВ2","9");
+e("16","n16a","");coil("КРТ","n16a");e("31","n31a","РРТ1");e("n31a","n16a","!РРТ2");
+e("16","n16b","!ПП");e("17","n16b","ПП");d("n16b","nVPs");coil("ВП (песок)","nVPs");
+
+var WIRES=["17","2","3","25","4","5","6","7","19","8","1","11","12","13","14","9","16","31"];
+var SHOW=["ВПЕРЁД","НАЗАД","РХ","РРТ1","РРТ2","РР","ЛК4","ЛК2","ЛК1","ЛК3","Р","Ш","Ш1","Ш2","КТ1","КТ2","ТБ","Т1","Т2","ВТ1","ВТ2","СД","ОВ СД","РОВ","СР","РТ","КРТ","РВВ2","РВЗ","Возврат РП","ВП (песок)"];
+
+function inList(list,v){var a=list.split(",");for(var i=0;i<a.length;i++)if(a[i]===v)return true;return false;}
+function rkClosed(spec,p){var a=spec.split(",");for(var i=0;i<a.length;i++){var r=a[i].split("-");var lo=+r[0],hi=r.length>1?+r[1]:lo;if(p>=lo&&p<=hi)return true;}return false;}
+function grkInt(){return Math.floor(S.grk);}
+function onPos(){return (S.grk-Math.floor(S.grk))<0.3;}
+function relayOn(n){
+ if(n==="РН"||n==="РН2")return S.env["КС"];
+ if(n==="РС")return S.env["Двери"];
+ if(n==="РП")return S.rp;
+ if(n==="РУТ"||n==="РМТ")return false;
+ return !!S.relay[n];
+}
+function cond(c){
+ if(c==="")return true;
+ if(c.charAt(0)==="!")return !relayOn(c.substr(1));
+ if(c.indexOf("KV:")===0)return inList(c.substr(3),S.kv);
+ if(c.indexOf("REV:")===0)return S.rev===c.substr(4);
+ if(c.indexOf("РК:")===0)return rkClosed(c.substr(3),grkInt());
+ if(c==="РКМ1"||c==="РКМ2")return !onPos();
+ if(c==="РКП")return onPos();
+ if(c==="ВП")return S.revPos==="F";
+ if(c==="НАЗ")return S.revPos==="B";
+ if(c.indexOf("Пр")===0)return true;
+ if(S.sw.hasOwnProperty(c))return S.sw[c];
+ if(S.bt.hasOwnProperty(c))return S.bt[c];
+ return relayOn(c);
+}
+function solveOnce(){
+ var live={"31":true},changed=true,i;
+ while(changed){changed=false;
+  for(i=0;i<E.length;i++){var x=E[i];if(!cond(x.c))continue;
+   if(live[x.a]&&!live[x.b]){live[x.b]=true;changed=true;}
+   if(!x.d&&live[x.b]&&!live[x.a]){live[x.a]=true;changed=true;}}}
+ return live;
+}
+function coilOn(k,live){if(!live[k.node])return false;for(var j=0;j<k.cond.length;j++)if(!cond(k.cond[j]))return false;return true;}
+var LIVE={};
+function step(dt){
+ var it,i,live;
+ for(it=0;it<12;it++){
+  live=solveOnce();var ch=false;
+  var want={};for(i=0;i<C.length;i++){if(coilOn(C[i],live))want[C[i].n]=true;}
+  for(var n in want){if(!S.relay[n]){S.relay[n]=true;ch=true;}S.tdrop[n]=TIMED[n]||0;}
+  for(var r in S.relay){if(S.relay[r]&&!want[r]){if(TIMED[r]&&S.tdrop[r]>0){continue;}S.relay[r]=false;ch=true;}}
+  if(!ch)break;
+ }
+ LIVE=live;
+ for(var t in TIMED){if(S.relay[t]&&!coilOnByName(t,live)){S.tdrop[t]-=dt;if(S.tdrop[t]<=0)S.relay[t]=false;}}
+ if(S.relay["ВПЕРЁД"])S.revPos="F";
+ if(S.relay["НАЗАД"])S.revPos="B";
+ if(S.env["Перегрузка"]){S.rp=true;}
+ if(S.relay["Возврат РП"]&&!S.env["Перегрузка"])S.rp=false;
+ if(S.relay["СД"]&&S.relay["ОВ СД"]){
+  var before=onPos(),p=S.grk+dt*2.2;
+  if(p>=18)p-=17;
+  S.grk=p;
+ }
+}
+function coilOnByName(n,live){for(var i=0;i<C.length;i++)if(C[i].n===n&&coilOn(C[i],live))return true;return false;}
+
+// ---- «почему»: все пути от +31 до катушки
+var adj={};
+(function(){for(var i=0;i<E.length;i++){var x=E[i];(adj[x.a]=adj[x.a]||[]).push({to:x.b,e:x});if(!x.d)(adj[x.b]=adj[x.b]||[]).push({to:x.a,e:x});}})();
+var SKIP={"31":1,"35":1,"17":1,"K":1};
+function paths(target){
+ var res=[],seen={};
+ function dfs(n,acc,depth){
+  if(res.length>8||depth>18)return;
+  if(n==="17"||n==="31"||n==="K"||n==="k30"||n==="k31"||n==="k32"||n==="k33"){res.push(acc.slice().reverse());return;}
+  seen[n]=true;var L=adj[n]||[];
+  for(var i=0;i<L.length;i++){var y=L[i];var back=(y.e.b===n)?y.e.a:y.e.b;if(y.e.d&&y.e.b!==n)continue;if(seen[back])continue;acc.push({e:y.e,from:back});dfs(back,acc,depth+1);acc.pop();}
+  seen[n]=false;
+ }
+ dfs(target,[],0);return res;
+}
+function label(c){
+ if(c==="")return null;
+ if(c.indexOf("KV:")===0)return "КВ ["+c.substr(3)+"]";
+ if(c.indexOf("REV:")===0)return "реверсор «"+c.substr(4)+"»";
+ if(c.indexOf("РК:")===0)return "РК"+c.substr(3);
+ if(c.charAt(0)==="!")return c.substr(1)+" (н.з.)";
+ if(c==="СЕКВ")return "кн. СЕКВЕНЦИЯ";if(c==="ВРП")return "кн. Возврат РП";
+ return c;
+}
+function showWhy(n){
+ var k=null,html="";for(var i=0;i<C.length;i++)if(C[i].n===n){k=C[i];
+  var ps=paths(k.node);
+  html+="<div><b>"+n+"</b> — "+(S.relay[n]?"<span class='c-ok'>включено</span>":"<span class='c-no'>выключено</span>")+"</div>";
+  if(k.cond.length){html+="<div class='c-n'>в цепи катушки: ";for(var j=0;j<k.cond.length;j++){var ok=cond(k.cond[j]);html+="<span class='"+(ok?"c-ok":"c-no")+"'>"+label(k.cond[j])+"</span> ";}html+="</div>";}
+  for(var p=0;p<ps.length;p++){var s="",start=ps[p].length?(ps[p][0].from):"";s+="<span class='c-n'>"+start+"</span>";
+   for(var q=0;q<ps[p].length;q++){var ed=ps[p][q].e,lb=label(ed.c);if(ed.d)lb="диод";if(lb===null)continue;var ok2=ed.d?true:cond(ed.c);s+=" → <span class='"+(ok2?"c-ok":"c-no")+"'>"+lb+"</span>";}
+   html+="<div class='path'>"+s+" → <b>катушка</b></div>";}
+ }
+ document.getElementById("why").innerHTML=html||"Нет данных";
+}
+
+// ---- UI
+var SEL=null;
+function el(id){return document.getElementById(id);}
+function tap(node,fn){node.addEventListener("click",fn,false);}
+function buildUI(){
+ var r=el("rev"),i;
+ var rv=["Назад","Стоп","Вперёд"];
+ for(i=0;i<rv.length;i++)(function(v){var b=document.createElement("button");b.className="btn";b.textContent=v;b.setAttribute("data-v",v);tap(b,function(){S.rev=v;render();});r.appendChild(b);})(rv[i]);
+ var k=el("kv");
+ for(i=0;i<KVPOS.length;i++)(function(v){var b=document.createElement("button");b.className="btn kv";b.textContent=v;b.setAttribute("data-v",v);tap(b,function(){S.kv=v;render();});k.appendChild(b);})(KVPOS[i]);
+ mk(el("sw"),S.sw,{"ОМ":"ОМ (отключ. моторов)"});
+ mk(el("bt"),S.bt,{"ПБ":"ПБ (педаль)","СЕКВ":"Секвенция","ВРП":"Возврат РП","КН7":"КН7","ПП":"ПП (песок)"});
+ mk(el("env"),S.env,{"КС":"Напряжение в КС","Двери":"Двери открыты","Перегрузка":"Перегрузка (РП)"});
+ var g=el("grk");for(i=1;i<=17;i++){var s=document.createElement("span");s.textContent=i;if(FIX[i])s.className="fix";g.appendChild(s);}
+ var dv=el("devs");for(i=0;i<SHOW.length;i++)(function(n){var b=document.createElement("span");b.className="dev";b.textContent=n;b.setAttribute("data-n",n);tap(b,function(){SEL=n;render();});dv.appendChild(b);})(SHOW[i]);
+ var w=el("wires");for(i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i];x.setAttribute("data-w",WIRES[i]);w.appendChild(x);}
+}
+function mk(box,obj,names){for(var key in obj)(function(kk){var d=document.createElement("div");d.className="tg"+(kk==="Перегрузка"?" warn":"");d.setAttribute("data-k",kk);d.innerHTML="<span>"+(names[kk]||kk)+"</span><b></b>";tap(d,function(){obj[kk]=!obj[kk];render();});box.appendChild(d);})(key);}
+function setOn(list,attr,fn){for(var i=0;i<list.length;i++){var n=list[i];var on=fn(n.getAttribute(attr));n.className=n.className.replace(/ on/g,"")+(on?" on":"");}}
+function render(){
+ setOn(el("rev").children,"data-v",function(v){return v===S.rev;});
+ setOn(el("kv").children,"data-v",function(v){return v===S.kv;});
+ var all=[el("sw").children,el("bt").children,el("env").children],objs=[S.sw,S.bt,S.env];
+ for(var a=0;a<3;a++)setOn(all[a],"data-k",(function(o){return function(k){return o[k];};})(objs[a]));
+ var gi=grkInt(),sp=el("grk").children;for(var i=0;i<sp.length;i++){sp[i].className=(FIX[i+1]?"fix":"")+(i+1===gi?" cur":"");}
+ var dv=el("devs").children;for(i=0;i<dv.length;i++){var n=dv[i].getAttribute("data-n");dv[i].className="dev"+(S.relay[n]?" on":"")+(n===SEL?" sel":"");}
+ var ws=el("wires").children;for(i=0;i<ws.length;i++){var w=ws[i].getAttribute("data-w");ws[i].className="wire"+(LIVE[w]?" on":"");}
+ el("status").innerHTML="КВ: <b>"+S.kv+"</b> · реверсор: <b>"+(S.revPos==="F"?"вперёд":"назад")+"</b> · ГРК: <b>"+gi+(onPos()?"":"→"+(gi%17+1))+"</b>"+(S.relay["СД"]&&S.relay["ОВ СД"]?" · <span class='c-ok'>СД крутится</span>":"")+(S.rp?" · <span class='c-no'>РП сработало</span>":"");
+ if(SEL)showWhy(SEL);
+}
+buildUI();
+var last=Date.now();
+setInterval(function(){var now=Date.now(),dt=Math.min(0.3,(now-last)/1000);last=now;step(dt);render();},120);
+step(0);render();
+})();
+</script>
+</body>
+</html>
