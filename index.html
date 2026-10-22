@@ -2173,9 +2173,9 @@ function buildRef(){
 var infoFor0=infoFor;infoFor=function(e){return refHeader(e)+infoFor0(e);};
 
 /* ===================== Звуки ===================== */
-var SNDCAT=[["grk","Переключение ГРК"],["kon","Контакторы и токоприёмник"],["rel","Реле"],["rev","Реверсор"],["air","Пневматика (отпуск тормоза)"],["door","Двери"],["run","Ход и разгон"],["brk","Электрическое торможение"]];
+var SNDCAT=[["grk","Переключение ГРК"],["kon","Контакторы и токоприёмник"],["rel","Реле"],["rev","Реверсор"],["air","Пневматика (отпуск тормоза)"],["door","Двери"],["run","Ход и разгон"],["joint","Стук колёс на стыках"],["brk","Электрическое торможение"]];
 var SND={on:true,ctx:null,buf:{},last:{},unlocked:false,prev:null,cat:{},vol:0.8,mot:null};
-(function(){for(var i=0;i<SNDCAT.length;i++)SND.cat[SNDCAT[i][0]]=!/^(door|run|brk)$/.test(SNDCAT[i][0]);
+(function(){for(var i=0;i<SNDCAT.length;i++)SND.cat[SNDCAT[i][0]]=!/^(door|run|brk|joint)$/.test(SNDCAT[i][0]);
  try{if(localStorage.getItem("lm68m_snd")==="0")SND.on=false;var c=JSON.parse(localStorage.getItem("lm68m_sndcat")||"{}");for(var k in c)if(k in SND.cat)SND.cat[k]=!!c[k];
   var v=parseFloat(localStorage.getItem("lm68m_sndvol"));if(v>=0&&v<=1)SND.vol=v;}catch(e){}})();
 function sndSave(){try{localStorage.setItem("lm68m_snd",SND.on?"1":"0");localStorage.setItem("lm68m_sndcat",JSON.stringify(SND.cat));localStorage.setItem("lm68m_sndvol",String(SND.vol));}catch(e){}}
@@ -2184,10 +2184,10 @@ function sndInit(){
  var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
  SND.ctx=new AC();
  SND.master=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();SND.master.gain.value=SND.vol;SND.master.connect(SND.ctx.destination);
- var names=["grk","kon_on","kon_off","rev","air","door_open","door_close","run"];
+ var names=["grk","kon_on","kon_off","rev","air","door_open","door_close"];
  for(var i=0;i<names.length;i++)(function(n){
   var x=new XMLHttpRequest();x.open("GET","snd/"+n+".mp3",true);x.responseType="arraybuffer";
-  x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;if(n==="run")motInit();},function(){});}catch(e){}};
+  x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;},function(){});}catch(e){}};
   x.send();})(names[i]);
 }
 function sndUnlock(){
@@ -2212,28 +2212,72 @@ function play2(n,vol,rate,delay,cat){
   s.buffer=SND.buf[n];s.playbackRate.value=rate*(0.95+Math.random()*0.1);g.gain.value=vol;
   s.connect(g);g.connect(SND.master);var t=SND.ctx.currentTime+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
 }
-/* --- шум хода: петля из записи, громкость и высота зависят от скорости и тока --- */
-function motLayer(lp){
- var s=SND.ctx.createBufferSource(),g=gainNode();s.buffer=SND.buf.run;s.loop=true;
- var d=SND.buf.run.duration;try{s.loopStart=0.06;s.loopEnd=d-0.06;}catch(e){}
- g.gain.value=0;var last=g;
- if(lp&&SND.ctx.createBiquadFilter){var f=SND.ctx.createBiquadFilter();f.type=typeof f.LOWPASS==="number"?f.LOWPASS:"lowpass";f.frequency.value=lp;s.connect(f);f.connect(g);}else s.connect(g);
- last.connect(SND.master);var off=Math.random()*d*0.8;if(s.start)s.start(0,off);else s.noteGrainOn(0,off,d-off);
- return {s:s,g:g};
+/* --- звук хода: синтез по физике привода (как в «Голосе электротранспорта», профиль ЛМ-68М) --- */
+var SYN={D:0.7,ratio:7.14,zp:14,slots:27,vmax:65,gh:[1,0.45,0.2],Lr:12.5,car:15,axles:[0,1.9,7.4,9.3],seat:0.1,Imax:300,aux:200,cab:0.35};
+var SY=null;
+function synInit(){
+ if(SY||!SND.ctx)return;var c=SND.ctx,mk=c.createScriptProcessor?function(){return c.createScriptProcessor(4096,0,1);}:c.createJavaScriptNode?function(){return c.createJavaScriptNode(4096,0,1);}:null;if(!mk)return;
+ var sr=c.sampleRate,TAU=Math.PI*2;
+ function rz(f,dec){var w=TAU*f/sr,r=Math.exp(-1/(dec*sr));return {a:2*r*Math.cos(w),b:r*r,g:Math.sin(w),y1:0,y2:0};}
+ function bank(l){var o=[];for(var i=0;i<l.length;i++){var z=rz(l[i][0],l[i][1]);z.amp=l[i][2];o.push(z);}return o;}
+ var R={jr:bank([[520,.06,.5],[1180,.05,.45],[1960,.035,.35],[2870,.025,.25],[3900,.015,.15]]),jl1:rz(46,.13),jl2:rz(112,.07),jf1:rz(60,.12),jf2:rz(240,.05),jf3:rz(700,.03),bs:rz(2350,.02)};
+ var AX=[],span=9.3,lp=SYN.seat*SYN.car-(SYN.car-span)/2;
+ for(var i=0;i<SYN.axles.length;i++){var o=SYN.axles[i],d=Math.abs(o-lp);AX.push({o:o,w:1/(1+Math.pow(d/5,1.4)),nf:Math.max(0,Math.min(1,1-(d-2)/(SYN.car*.7))),k:null});}
+ SY={node:mk(),R:R,AX:AX,sr:sr,x:0,v:0,aq:0,br:0,gph:0,shp:0,mph:0,auxp:0,t:0,sm:{g:0,m:0,r:0,a:0,b:0},F:{l1:0,l2:0,l3:0,l4:0,j:0,jc:0},J:{r:0,l:0,b:0,f:0},Q:[],tgt:{v:0,aq:0,run:0,brk:0,aux:0,bs:0,jv:0}};
+ var lpf=c.createBiquadFilter?c.createBiquadFilter():null;
+ if(lpf){lpf.type=typeof lpf.LOWPASS==="number"?lpf.LOWPASS:"lowpass";lpf.frequency.value=900*Math.pow(18,1-SYN.cab);lpf.Q.value=0.5;SY.node.connect(lpf);lpf.connect(SND.master);}else SY.node.connect(SND.master);
+ SY.node.onaudioprocess=synAudio;
 }
-function motInit(){if(SND.mot||!SND.ctx||!SND.buf.run)return;try{SND.mot={run:motLayer(0),brk:motLayer(900)};}catch(e){SND.mot=null;}}
-function setP(p,v){var t=SND.ctx.currentTime;try{if(p.setTargetAtTime){p.cancelScheduledValues(t);p.setTargetAtTime(v,t,0.12);}else p.value=v;}catch(e){p.value=v;}}
-function motUpdate(){
- var M=SND.mot;if(!M)return;
- var vk=Math.abs(S.v)*3.6,I=Math.max(curI("ТЭД1"),curI("ТЭД2")),brake=S.kv.charAt(0)==="Т"&&I>3,trac=!brake&&I>3;
- var rate=0.6+0.7*Math.min(1,vk/60);
- var gr=0,gb=0;
- if(SND.on){
-  if(SND.cat.run)gr=Math.min(1,vk/12)*0.45+(trac?0.35*Math.min(1,I/150):0);
-  if(SND.cat.brk&&brake)gb=0.55*Math.min(1,I/150)*Math.min(1,vk/5);
+function synRs(o,x){var y=o.a*o.y1-o.b*o.y2+x*o.g;o.y2=o.y1;o.y1=y;return y;}
+function synBk(b,x){var y=0;for(var i=0;i<b.length;i++)y+=synRs(b[i],x*b[i].amp);return y;}
+function synHsh(j){var x=Math.sin(j*12.9898+4.1)*43758.5453;return x-Math.floor(x);}
+function synAudio(e){
+ var out=e.outputBuffer.getChannelData(0),N=out.length,Y=SY,sr=Y.sr,dt=1/sr,TAU=Math.PI*2,T=Y.tgt,F=Y.F,J=Y.J,sm=Y.sm,R=Y.R;
+ if(!T.run&&!T.brk&&!T.jv&&sm.g<1e-4&&sm.r<1e-4&&sm.m<1e-4&&sm.b<1e-4){for(var z=0;z<N;z++)out[z]=0;return;}
+ var vk0=Y.v*3.6;function cA(f){return 1-Math.exp(-TAU*f/sr);}
+ var aL=cA(110),aB2=cA(260+vk0*9),aB1=cA(90),aH=cA(2500),ks=1-Math.exp(-1/(.03*sr)),kv=1-Math.exp(-1/(.25*sr));
+ var dJ=Math.exp(-1/(.0025*sr)),h=SYN.gh,vol=0.9;
+ for(var i=0;i<N;i++){
+  Y.t+=dt;
+  for(var q=Y.Q.length-1;q>=0;q--){if(Y.Q[q][0]--<=0){var f=Y.Q[q];Y.Q.splice(q,1);J.r+=f[1]*f[2]*f[3];J.l+=f[1]*(.35+.65*f[3]);J.b+=f[1]*f[2]*f[3];J.f+=f[1]*(1-f[3]);}}
+  Y.v+=kv*(T.v-Y.v);Y.aq+=kv*(T.aq-Y.aq);Y.x+=Y.v*dt;
+  var vk=Y.v*3.6,aq=Y.aq,w=Math.random()*2-1;
+  F.l1+=aL*(w-F.l1);F.l2+=aB2*(w-F.l2);F.l3+=aB1*(w-F.l3);F.l4+=aH*(w-F.l4);F.j+=.002*(w-F.j);
+  var bp=F.l2-F.l3,hp=w-F.l4,s=0;
+  // редуктор
+  var fm=Y.v/(Math.PI*SYN.D)*SYN.ratio;Y.gph+=fm*SYN.zp*dt;Y.gph-=Math.floor(Y.gph);Y.shp+=fm*dt;Y.shp-=Math.floor(Y.shp);
+  var s1=Math.sin(TAU*Y.gph),c1=Math.cos(TAU*Y.gph),s2=2*s1*c1,s3=s1*(3-4*s1*s1);
+  var gOn=T.run||T.brk?1:0;
+  sm.g+=ks*(gOn*Math.min(1,vk/6)*(.3+.7*aq)*(.5+.5*Math.min(1,vk/(.5*SYN.vmax)))-sm.g);
+  s+=sm.g*(s1*h[0]+s2*h[1]+s3*h[2])*(1+.3*Math.sin(TAU*Y.shp))*(1+6*F.j)*.2;
+  // якорь ТЭД (пазовая частота)
+  Y.mph+=fm*SYN.slots*dt;Y.mph-=Math.floor(Y.mph);sm.m+=ks*(gOn*aq*Math.min(1,vk/4)-sm.m);s+=sm.m*Math.sin(TAU*Y.mph)*.07;
+  if(T.run||T.jv){
+   // качение
+   sm.r+=ks*((T.run?1:0)*Math.pow(Math.min(1,vk/SYN.vmax),1.2)-sm.r);
+   // стыки
+   for(var a=0;a<Y.AX.length;a++){var ax=Y.AX[a],k=Math.floor((Y.x-ax.o)/SYN.Lr);if(k!==ax.k){if(ax.k!==null&&Y.v>.2){var qq=.55+.9*synHsh(k),am=qq*ax.w*Math.min(1.15,.15+vk/45),bb=Math.max(.12,Math.min(1,.12+vk/60));
+     J.r+=am*bb*ax.nf;J.l+=am*(.35+.65*ax.nf);J.b+=am*bb*ax.nf;J.f+=am*(1-ax.nf);
+     Y.Q.push([Math.round((.0004+Math.random()*.0022)*sr),am*(.6+.3*Math.random()),bb,ax.nf]);}ax.k=k;}}
+  }else sm.r+=ks*(0-sm.r);
+  s+=sm.r*(2.2*F.l1+1.4*bp+.12*hp);
+  var jr=J.r,jl=J.l,jf=J.f;J.r=J.l=J.f=0;F.jc=F.jc*dJ+J.b;J.b=0;
+  s+=T.jv*(synBk(R.jr,jr*.55)+synRs(R.jl1,jl*.9)+synRs(R.jl2,jl*.5)+hp*F.jc*.7+synRs(R.jf1,jf*.8)+synRs(R.jf2,jf*.35)+synRs(R.jf3,jf*.12));
+  // БПН
+  sm.a+=ks*(T.aux-sm.a);Y.auxp+=SYN.aux*dt;Y.auxp-=Math.floor(Y.auxp);s+=sm.a*(Math.sin(TAU*Y.auxp)*.04+Math.sin(TAU*((Y.t*100)%1))*.025);
+  // скрип колодок при дотормаживании
+  sm.b+=ks*(T.bs-sm.b);if(sm.b>1e-3)s+=sm.b*(.03*synRs(R.bs,w*.2)*20+bp*.3);
+  out[i]=Math.tanh(s*vol*1.6);
  }
- setP(M.run.g.gain,gr);setP(M.run.s.playbackRate,rate);
- setP(M.brk.g.gain,gb);setP(M.brk.s.playbackRate,rate*1.12);
+}
+function motUpdate(){
+ if(!SND.ctx)return;
+ var want=SND.on&&(SND.cat.run||SND.cat.brk||SND.cat.joint);if(!SY){if(!want)return;synInit();if(!SY)return;}
+ var vk=Math.abs(S.v)*3.6,I=Math.max(curI("ТЭД1"),curI("ТЭД2")),brake=S.kv.charAt(0)==="Т",T=SY.tgt;
+ T.run=SND.on&&SND.cat.run?1:0;T.jv=SND.on&&SND.cat.joint?2.6:0;T.brk=SND.on&&SND.cat.brk?1:0;T.v=Math.abs(S.v);
+ var q=Math.min(1,I/SYN.Imax);T.aq=brake?(T.brk?q:0):(T.run?q:0);
+ T.aux=T.run&&S.relay["БПН"]?0.5:0;
+ T.bs=T.brk&&!S.relay["ВТ1"]&&!S.relay["ВТ2"]&&vk>0.3&&vk<7?1:0;
 }
 var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ","КМГ","КОС","КО1","КО2","КАС1","КАС2","ВПЕРЁД","НАЗАД"];
 var SND_REL=["РХ","РРТ1","РРТ2","РР","РОВ","СР","РТ","РВВ2","РВЗ","РН","РН2","Возврат РП","РУТ-3","РС","РСП","ВТ1","ВТ2","ВД1","ВД2","ВД3","Ш2"];
@@ -2275,10 +2319,11 @@ function buildSndPanel(){
  var vr=document.createElement("div");vr.className="volrow";vr.innerHTML="<span>Громкость</span>";var r=document.createElement("input");r.type="range";r.min=0;r.max=100;r.value=Math.round(SND.vol*100);
  r.oninput=r.onchange=function(){SND.vol=r.value/100;if(SND.master)SND.master.gain.value=SND.vol;sndSave();};vr.appendChild(r);p.appendChild(vr);
  for(var i=0;i<SNDCAT.length;i++)(function(c){syncs.push(row(c[1],function(){return SND.cat[c[0]];},function(v){SND.cat[c[0]]=v;}));})(SNDCAT[i]);
- var n=document.createElement("div");n.className="note";n.textContent="Ход, разгон и торможение — петля из твоей записи: громкость и высота тона зависят от скорости и тока двигателей. Двери открываются и закрываются вентилями ВД1–ВД3 (выключатели В11, В10, В5 на листе «НВ вспомогательные») или переключателем «Двери открыты».";p.appendChild(n);
+ var n=document.createElement("div");n.className="note";n.textContent="Ход, разгон и торможение синтезируются по физике привода ЛМ-68М: вой тягового редуктора (зубцовая частота), пазовый тон якоря, качение, гул БПН; стук колёс на стыках (рельсы по 12,5 м, две тележки) — всё от скорости и тока ТЭД. Двери открываются и закрываются вентилями ВД1–ВД3 (выключатели В11, В10, В5 на листе «НВ вспомогательные») или переключателем «Двери открыты».";p.appendChild(n);
  function syncAll(){for(var j=0;j<syncs.length;j++)syncs[j]();}
  syncAll();
 }
+window.__syn=function(){return SY;};
 
 /* ===================== Интерфейс ===================== */
 function tap(node,fn){node.addEventListener("click",fn,false);}
