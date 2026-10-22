@@ -2220,7 +2220,7 @@ function synInit(){
  var sr=c.sampleRate,TAU=Math.PI*2;
  function rz(f,dec){var w=TAU*f/sr,r=Math.exp(-1/(dec*sr));return {a:2*r*Math.cos(w),b:r*r,g:Math.sin(w),y1:0,y2:0};}
  function bank(l){var o=[];for(var i=0;i<l.length;i++){var z=rz(l[i][0],l[i][1]);z.amp=l[i][2];o.push(z);}return o;}
- var R={jr:bank([[520,.06,.5],[1180,.05,.45],[1960,.035,.35],[2870,.025,.25],[3900,.015,.15]]),jl1:rz(46,.13),jl2:rz(112,.07),jf1:rz(60,.12),jf2:rz(240,.05),jf3:rz(700,.03),bs:rz(2350,.02)};
+ var R={jr:bank([[520,.06,.5],[1180,.05,.45],[1960,.035,.35],[2870,.025,.25],[3900,.015,.15]]),jl1:rz(46,.13),jl2:rz(112,.07),jf1:rz(60,.12),jf2:rz(240,.05),jf3:rz(700,.03),jm:rz(260,.04),bs:rz(1900,.015)};
  var AX=[],span=9.3,lp=SYN.seat*SYN.car-(SYN.car-span)/2;
  for(var i=0;i<SYN.axles.length;i++){var o=SYN.axles[i],d=Math.abs(o-lp);AX.push({o:o,w:1/(1+Math.pow(d/5,1.4)),nf:Math.max(0,Math.min(1,1-(d-2)/(SYN.car*.7))),k:null});}
  SY={node:mk(),R:R,AX:AX,sr:sr,x:0,v:0,aq:0,br:0,gph:0,shp:0,mph:0,auxp:0,t:0,sm:{g:0,m:0,r:0,a:0,b:0},F:{l1:0,l2:0,l3:0,l4:0,j:0,jc:0},J:{r:0,l:0,b:0,f:0},Q:[],tgt:{v:0,aq:0,run:0,brk:0,aux:0,bs:0,jv:0}};
@@ -2256,17 +2256,17 @@ function synAudio(e){
    // качение
    sm.r+=ks*((T.run?1:0)*Math.pow(Math.min(1,vk/SYN.vmax),1.2)-sm.r);
    // стыки
-   for(var a=0;a<Y.AX.length;a++){var ax=Y.AX[a],k=Math.floor((Y.x-ax.o)/SYN.Lr);if(k!==ax.k){if(ax.k!==null&&Y.v>.2){var qq=.55+.9*synHsh(k),am=qq*ax.w*Math.min(1.15,.15+vk/45),bb=Math.max(.12,Math.min(1,.12+vk/60));
+   for(var a=0;a<Y.AX.length;a++){var ax=Y.AX[a],k=Math.floor((Y.x-ax.o)/SYN.Lr);if(k!==ax.k){if(ax.k!==null&&Y.v>.2){var qq=.55+.9*synHsh(k),am=qq*ax.w*Math.min(1.15,.4+vk/35),bb=Math.max(.12,Math.min(1,.12+vk/60));
      J.r+=am*bb*ax.nf;J.l+=am*(.35+.65*ax.nf);J.b+=am*bb*ax.nf;J.f+=am*(1-ax.nf);
      Y.Q.push([Math.round((.0004+Math.random()*.0022)*sr),am*(.6+.3*Math.random()),bb,ax.nf]);}ax.k=k;}}
   }else sm.r+=ks*(0-sm.r);
   s+=sm.r*(2.2*F.l1+1.4*bp+.12*hp);
   var jr=J.r,jl=J.l,jf=J.f;J.r=J.l=J.f=0;F.jc=F.jc*dJ+J.b;J.b=0;
-  s+=T.jv*(synBk(R.jr,jr*.55)+synRs(R.jl1,jl*.9)+synRs(R.jl2,jl*.5)+hp*F.jc*.7+synRs(R.jf1,jf*.8)+synRs(R.jf2,jf*.35)+synRs(R.jf3,jf*.12));
+  s+=T.jv*(synBk(R.jr,jr*1.6)+synRs(R.jl1,jl*.35)+synRs(R.jl2,jl*.6)+synRs(R.jm,jl*1.1)+hp*F.jc*1.8+synRs(R.jf1,jf*.4)+synRs(R.jf2,jf*.5)+synRs(R.jf3,jf*.3));
   // БПН
   sm.a+=ks*(T.aux-sm.a);Y.auxp+=SYN.aux*dt;Y.auxp-=Math.floor(Y.auxp);s+=sm.a*(Math.sin(TAU*Y.auxp)*.04+Math.sin(TAU*((Y.t*100)%1))*.025);
   // скрип колодок при дотормаживании
-  sm.b+=ks*(T.bs-sm.b);if(sm.b>1e-3)s+=sm.b*(.03*synRs(R.bs,w*.2)*20+bp*.3);
+  sm.b+=ks*(T.bs-sm.b);if(sm.b>1e-3)s+=sm.b*(.03*synRs(R.bs,w*.2)+bp*.12);
   out[i]=Math.tanh(s*vol*1.6);
  }
 }
@@ -2310,7 +2310,7 @@ setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tp
 function buildSndPanel(){
  var p=$("sndp");p.innerHTML="";
  var x=document.createElement("button");x.className="x";x.textContent="✕";tap(x,function(){p.style.display="none";});p.appendChild(x);
- var h=document.createElement("h2");h.textContent="Звук";p.appendChild(h);
+ var h=document.createElement("h2");h.textContent="Звук · синтез v3";p.appendChild(h);
  function row(lab,get,set,main){var d=document.createElement("div");d.className="tg"+(main?" main":"");d.innerHTML="<span></span><b></b>";d.firstChild.textContent=lab;
   var sync=function(){var on=get();d.className="tg"+(on?" on":"")+(main?" main":"")+(!main&&!SND.on?" dim":"");d.lastChild.textContent=on?"вкл":"выкл";};
   tap(d,function(){set(!get());sndSave();sndUnlock();syncAll();sndBtn();motUpdate();});p.appendChild(d);return sync;}
