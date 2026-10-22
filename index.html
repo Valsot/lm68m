@@ -52,6 +52,15 @@ h2:first-child{margin-top:0}
 .note{font-size:11px;color:#6f7f94;margin-top:8px;line-height:1.4}
 #menuBtn{display:none}
 #ref{position:absolute;left:10px;right:10px;top:10px;bottom:10px;z-index:8;background:rgba(22,26,34,.98);border:1px solid #2f384a;border-radius:10px;padding:10px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;font-size:13px;line-height:1.45}
+#sndp{position:absolute;right:10px;top:10px;width:300px;max-width:calc(100% - 20px);max-height:calc(100% - 20px);z-index:9;background:rgba(22,26,34,.98);border:1px solid #2f384a;border-radius:10px;padding:10px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#sndp h2{margin:2px 0 10px}
+#sndp .x{float:right;border:0;background:#2b3547;color:#e9edf3;border-radius:5px;padding:4px 10px;font-weight:700;cursor:pointer}
+#sndp .tg.main{border-bottom:1px solid #2f384a;padding-bottom:8px;margin-bottom:6px}
+#sndp .tg.dim{opacity:.45}
+#sndp .volrow{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:6px 0 10px}
+#sndp .volrow span{margin-right:10px;color:#b3bfd0}
+#sndp .volrow input{-webkit-box-flex:1;-webkit-flex:1;flex:1}
+#sndp .note{margin-top:10px;font-size:12px;color:#8fa0b6;line-height:1.45}
 #ref .x{float:right;border:0;background:#2b3547;color:#e9edf3;border-radius:5px;padding:4px 10px;font-weight:700;cursor:pointer}
 #ref table{border-collapse:collapse;width:100%;margin-top:8px}
 #ref td{border-bottom:1px solid #262d3a;padding:6px 8px;vertical-align:top}
@@ -168,6 +177,7 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
   <div id="short">Короткое замыкание!</div>
   <div id="info"></div>
   <div id="ref"></div>
+  <div id="sndp"></div>
  </div>
 </div>
 <script>
@@ -2163,16 +2173,21 @@ function buildRef(){
 var infoFor0=infoFor;infoFor=function(e){return refHeader(e)+infoFor0(e);};
 
 /* ===================== Звуки ===================== */
-var SND={on:true,ctx:null,buf:{},last:{},unlocked:false,prev:null};
-try{if(localStorage.getItem("lm68m_snd")==="0")SND.on=false;}catch(e){}
+var SNDCAT=[["grk","Переключение ГРК"],["kon","Контакторы и токоприёмник"],["rel","Реле"],["rev","Реверсор"],["air","Пневматика (отпуск тормоза)"],["door","Двери"],["run","Ход и разгон"],["brk","Электрическое торможение"]];
+var SND={on:true,ctx:null,buf:{},last:{},unlocked:false,prev:null,cat:{},vol:0.8,mot:null};
+(function(){for(var i=0;i<SNDCAT.length;i++)SND.cat[SNDCAT[i][0]]=!/^(door|run|brk)$/.test(SNDCAT[i][0]);
+ try{if(localStorage.getItem("lm68m_snd")==="0")SND.on=false;var c=JSON.parse(localStorage.getItem("lm68m_sndcat")||"{}");for(var k in c)if(k in SND.cat)SND.cat[k]=!!c[k];
+  var v=parseFloat(localStorage.getItem("lm68m_sndvol"));if(v>=0&&v<=1)SND.vol=v;}catch(e){}})();
+function sndSave(){try{localStorage.setItem("lm68m_snd",SND.on?"1":"0");localStorage.setItem("lm68m_sndcat",JSON.stringify(SND.cat));localStorage.setItem("lm68m_sndvol",String(SND.vol));}catch(e){}}
 function sndInit(){
  if(SND.ctx)return;
  var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
  SND.ctx=new AC();
- var names=["grk","kon_on","kon_off","rev","air"];
+ SND.master=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();SND.master.gain.value=SND.vol;SND.master.connect(SND.ctx.destination);
+ var names=["grk","kon_on","kon_off","rev","air","door_open","door_close","run"];
  for(var i=0;i<names.length;i++)(function(n){
   var x=new XMLHttpRequest();x.open("GET","snd/"+n+".mp3",true);x.responseType="arraybuffer";
-  x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;},function(){});}catch(e){}};
+  x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;if(n==="run")motInit();},function(){});}catch(e){}};
   x.send();})(names[i]);
 }
 function sndUnlock(){
@@ -2181,43 +2196,89 @@ function sndUnlock(){
   if(SND.ctx.resume)SND.ctx.resume();SND.unlocked=true;}catch(e){}
 }
 document.addEventListener("touchend",sndUnlock,false);document.addEventListener("click",sndUnlock,false);
-function play(n,vol,gap,delay){
- if(!SND.on||!SND.ctx||!SND.buf[n])return;
+function gainNode(){return SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();}
+function canPlay(n,cat){return SND.on&&SND.ctx&&SND.buf[n]&&(!cat||SND.cat[cat]);}
+function play(n,vol,gap,delay,cat){
+ if(!canPlay(n,cat))return;
  var now=SND.ctx.currentTime;gap=gap||0.06;
  if(SND.last[n]&&now-SND.last[n]<gap)return;SND.last[n]=now;
- try{var s=SND.ctx.createBufferSource(),g=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();
+ try{var s=SND.ctx.createBufferSource(),g=gainNode();
   s.buffer=SND.buf[n];s.playbackRate.value=0.94+Math.random()*0.12;g.gain.value=vol===undefined?1:vol;
-  s.connect(g);g.connect(SND.ctx.destination);var t=now+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
+  s.connect(g);g.connect(SND.master);var t=now+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
+}
+function play2(n,vol,rate,delay,cat){
+ if(!canPlay(n,cat))return;
+ try{var s=SND.ctx.createBufferSource(),g=gainNode();
+  s.buffer=SND.buf[n];s.playbackRate.value=rate*(0.95+Math.random()*0.1);g.gain.value=vol;
+  s.connect(g);g.connect(SND.master);var t=SND.ctx.currentTime+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
+}
+/* --- шум хода: петля из записи, громкость и высота зависят от скорости и тока --- */
+function motLayer(lp){
+ var s=SND.ctx.createBufferSource(),g=gainNode();s.buffer=SND.buf.run;s.loop=true;
+ var d=SND.buf.run.duration;try{s.loopStart=0.06;s.loopEnd=d-0.06;}catch(e){}
+ g.gain.value=0;var last=g;
+ if(lp&&SND.ctx.createBiquadFilter){var f=SND.ctx.createBiquadFilter();f.type=typeof f.LOWPASS==="number"?f.LOWPASS:"lowpass";f.frequency.value=lp;s.connect(f);f.connect(g);}else s.connect(g);
+ last.connect(SND.master);var off=Math.random()*d*0.8;if(s.start)s.start(0,off);else s.noteGrainOn(0,off,d-off);
+ return {s:s,g:g};
+}
+function motInit(){if(SND.mot||!SND.ctx||!SND.buf.run)return;try{SND.mot={run:motLayer(0),brk:motLayer(900)};}catch(e){SND.mot=null;}}
+function setP(p,v){var t=SND.ctx.currentTime;try{if(p.setTargetAtTime){p.cancelScheduledValues(t);p.setTargetAtTime(v,t,0.12);}else p.value=v;}catch(e){p.value=v;}}
+function motUpdate(){
+ var M=SND.mot;if(!M)return;
+ var vk=Math.abs(S.v)*3.6,I=Math.max(curI("ТЭД1"),curI("ТЭД2")),brake=S.kv.charAt(0)==="Т"&&I>3,trac=!brake&&I>3;
+ var rate=0.6+0.7*Math.min(1,vk/60);
+ var gr=0,gb=0;
+ if(SND.on){
+  if(SND.cat.run)gr=Math.min(1,vk/12)*0.45+(trac?0.35*Math.min(1,I/150):0);
+  if(SND.cat.brk&&brake)gb=0.55*Math.min(1,I/150)*Math.min(1,vk/5);
+ }
+ setP(M.run.g.gain,gr);setP(M.run.s.playbackRate,rate);
+ setP(M.brk.g.gain,gb);setP(M.brk.s.playbackRate,rate*1.12);
 }
 var SND_KON=["ЛК1","ЛК2","ЛК3","ЛК4","Р","Ш","Ш1","Ш2","Т1","Т2","ТБ","КТ1","КТ2","КРТ","КМК","КЦУ","КМГ","КОС","КО1","КО2","КАС1","КАС2","ВПЕРЁД","НАЗАД"];
 var SND_REL=["РХ","РРТ1","РРТ2","РР","РОВ","СР","РТ","РВВ2","РВЗ","РН","РН2","Возврат РП","РУТ-3","РС","РСП","ВТ1","ВТ2","ВД1","ВД2","ВД3","Ш2"];
-function play2(n,vol,rate,delay){
- if(!SND.on||!SND.ctx||!SND.buf[n])return;
- try{var s=SND.ctx.createBufferSource(),g=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();
-  s.buffer=SND.buf[n];s.playbackRate.value=rate*(0.95+Math.random()*0.1);g.gain.value=vol;
-  s.connect(g);g.connect(SND.ctx.destination);var t=SND.ctx.currentTime+(delay||0);if(s.start)s.start(t);else s.noteOn(t);}catch(e){}
-}
 function sndWatch(){
  if(ACT===SH.pow)drawTP(SH.pow);
- var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{},r:{},rp:S.rp};
+ var dv=!!(S.relay["ВД1"]||S.relay["ВД2"]||S.relay["ВД3"]);
+ var cur={grk:grkInt(),rev:S.revPos,vt:!!(S.relay["ВТ1"]||S.relay["ВТ2"]),k:{},r:{},rp:S.rp,dv:dv,door:!!S.env["Двери"]};
  var i;for(i=0;i<SND_KON.length;i++)cur.k[SND_KON[i]]=!!S.relay[SND_KON[i]];
  for(i=0;i<SND_REL.length;i++)cur.r[SND_REL[i]]=!!S.relay[SND_REL[i]];
- var p=SND.prev;SND.prev=cur;if(!p)return;
- if(cur.grk!==p.grk)play("grk",0.8,0.05);
- if(cur.rev!==p.rev)play("rev",0.9,0.2);
+ var p=SND.prev;SND.prev=cur;motUpdate();if(!p)return;
+ // вентили дверей открывают/закрывают двери
+ if(cur.dv!==p.dv&&S.env["Двери"]!==cur.dv){S.env["Двери"]=cur.dv;cur.door=cur.dv;setTimeout(update,0);}
+ if(cur.door!==p.door)play(cur.door?"door_open":"door_close",0.9,0.3,0,"door");
+ if(cur.grk!==p.grk)play("grk",0.8,0.05,0,"grk");
+ if(cur.rev!==p.rev)play("rev",0.9,0.2,0,"rev");
  var nk=0,nr=0;
- for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]!==p.k[n]){play2(cur.k[n]?"kon_on":"kon_off",0.75,1,nk*0.045+Math.random()*0.015);nk++;}}
- for(i=0;i<SND_REL.length;i++){n=SND_REL[i];if(cur.r[n]!==p.r[n]&&nr<4){play2("grk",0.3,cur.r[n]?1.6:1.4,0.02+nr*0.03+Math.random()*0.02);nr++;}}
- if(cur.rp&&!p.rp)play2("kon_off",1,0.8,0);
+ for(i=0;i<SND_KON.length;i++){var n=SND_KON[i];if(cur.k[n]!==p.k[n]){play2(cur.k[n]?"kon_on":"kon_off",0.75,1,nk*0.045+Math.random()*0.015,"kon");nk++;}}
+ for(i=0;i<SND_REL.length;i++){n=SND_REL[i];if(cur.r[n]!==p.r[n]&&nr<4){play2("grk",0.3,cur.r[n]?1.6:1.4,0.02+nr*0.03+Math.random()*0.02,"rel");nr++;}}
+ if(cur.rp&&!p.rp)play2("kon_off",1,0.8,0,"kon");
  // пневматика: только на отпуск тормоза (ВТ получили питание и держат его), без звука при наложении
  var now=Date.now();
  if(!cur.vt){if(p.vt||!SND.vtOff)SND.vtOff=now;SND.vtOn=0;}
  else if(!p.vt){SND.vtOn=now;SND.vtWas=SND.vtOff?now-SND.vtOff:99999;SND.airDone=false;}
- if(cur.vt&&!SND.airDone&&SND.vtOn&&now-SND.vtOn>=350){SND.airDone=true;if(SND.vtWas>=1000)play("air",0.9,0.8,0);}
+ if(cur.vt&&!SND.airDone&&SND.vtOn&&now-SND.vtOn>=350){SND.airDone=true;if(SND.vtWas>=1000)play("air",0.9,0.8,0,"air");}
 }
 setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tpH>0.97;
  S.tpH+=(tg>S.tpH?1:-1)*(tg?0.045:0.07);if(S.tpH>1)S.tpH=1;if(S.tpH<0)S.tpH=0;
- drawTP(SH.pow);if((S.tpH>0.97)!==was){if(S.tpH>0.97)play("kon_on",0.5);update();}},40);
+ drawTP(SH.pow);if((S.tpH>0.97)!==was){if(S.tpH>0.97)play("kon_on",0.5,0.06,0,"kon");update();}},40);
+/* --- панель настроек звука --- */
+function buildSndPanel(){
+ var p=$("sndp");p.innerHTML="";
+ var x=document.createElement("button");x.className="x";x.textContent="✕";tap(x,function(){p.style.display="none";});p.appendChild(x);
+ var h=document.createElement("h2");h.textContent="Звук";p.appendChild(h);
+ function row(lab,get,set,main){var d=document.createElement("div");d.className="tg"+(main?" main":"");d.innerHTML="<span></span><b></b>";d.firstChild.textContent=lab;
+  var sync=function(){var on=get();d.className="tg"+(on?" on":"")+(main?" main":"")+(!main&&!SND.on?" dim":"");d.lastChild.textContent=on?"вкл":"выкл";};
+  tap(d,function(){set(!get());sndSave();sndUnlock();syncAll();sndBtn();motUpdate();});p.appendChild(d);return sync;}
+ var syncs=[];
+ syncs.push(row("Все звуки",function(){return SND.on;},function(v){SND.on=v;},true));
+ var vr=document.createElement("div");vr.className="volrow";vr.innerHTML="<span>Громкость</span>";var r=document.createElement("input");r.type="range";r.min=0;r.max=100;r.value=Math.round(SND.vol*100);
+ r.oninput=r.onchange=function(){SND.vol=r.value/100;if(SND.master)SND.master.gain.value=SND.vol;sndSave();};vr.appendChild(r);p.appendChild(vr);
+ for(var i=0;i<SNDCAT.length;i++)(function(c){syncs.push(row(c[1],function(){return SND.cat[c[0]];},function(v){SND.cat[c[0]]=v;}));})(SNDCAT[i]);
+ var n=document.createElement("div");n.className="note";n.textContent="Ход, разгон и торможение — петля из твоей записи: громкость и высота тона зависят от скорости и тока двигателей. Двери открываются и закрываются вентилями ВД1–ВД3 (выключатели В11, В10, В5 на листе «НВ вспомогательные») или переключателем «Двери открыты».";p.appendChild(n);
+ function syncAll(){for(var j=0;j<syncs.length;j++)syncs[j]();}
+ syncAll();
+}
 
 /* ===================== Интерфейс ===================== */
 function tap(node,fn){node.addEventListener("click",fn,false);}
@@ -2307,7 +2368,7 @@ function renderSum(){
 }
 function setSum(on){$("main").className=on?"sumopen":"";$("bSum").className="tb"+(on?" on":"");try{localStorage.setItem("lm68m_sum",on?"1":"0");}catch(e){}renderSum();}
 function sndBtn(){$("bSnd").className="tb"+(SND.on?" on":"");$("bSnd").textContent=SND.on?"Звук":"Звук выкл";}
-sndBtn();tap($("bSnd"),function(){SND.on=!SND.on;try{localStorage.setItem("lm68m_snd",SND.on?"1":"0");}catch(e){}sndUnlock();sndBtn();});
+sndBtn();tap($("bSnd"),function(){sndUnlock();var p=$("sndp");if(p.style.display!=="block")buildSndPanel();p.style.display=p.style.display==="block"?"none":"block";});
 tap($("bRef"),function(){var r=$("ref");if(!r.firstChild)buildRef();r.style.display=r.style.display==="block"?"none":"block";});
 tap($("bSum"),function(){setSum($("main").className.indexOf("sumopen")<0);});
 
