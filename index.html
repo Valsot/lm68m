@@ -2173,9 +2173,9 @@ function buildRef(){
 var infoFor0=infoFor;infoFor=function(e){return refHeader(e)+infoFor0(e);};
 
 /* ===================== Звуки ===================== */
-var SNDCAT=[["grk","Переключение ГРК"],["kon","Контакторы и токоприёмник"],["rel","Реле"],["rev","Реверсор"],["air","Пневматика (отпуск тормоза)"],["door","Двери"],["run","Ход и разгон"],["joint","Дополнительный стук колёс (синтез)"],["brk","Электрическое торможение"]];
+var SNDCAT=[["grk","Переключение ГРК"],["kon","Контакторы и токоприёмник"],["rel","Реле"],["rev","Реверсор"],["air","Пневматика (отпуск тормоза)"],["door","Двери"],["run","Ход и разгон"],["curve","Гудение колёс в кривых (из записи)"],["comp","Компрессор"],["bpn","Гул БПН"],["joint","Дополнительный стук колёс (синтез)"],["brk","Электрическое торможение"]];
 var SND={on:true,ctx:null,buf:{},last:{},unlocked:false,prev:null,cat:{},vol:0.8,mot:null};
-(function(){for(var i=0;i<SNDCAT.length;i++)SND.cat[SNDCAT[i][0]]=!/^(door|run|brk|joint)$/.test(SNDCAT[i][0]);
+(function(){for(var i=0;i<SNDCAT.length;i++)SND.cat[SNDCAT[i][0]]=!/^(door|run|brk|joint|curve|bpn)$/.test(SNDCAT[i][0]);
  try{if(localStorage.getItem("lm68m_snd")==="0")SND.on=false;var c=JSON.parse(localStorage.getItem("lm68m_sndcat")||"{}");for(var k in c)if(k in SND.cat)SND.cat[k]=!!c[k];
   var v=parseFloat(localStorage.getItem("lm68m_sndvol"));if(v>=0&&v<=1)SND.vol=v;}catch(e){}})();
 function sndSave(){try{localStorage.setItem("lm68m_snd",SND.on?"1":"0");localStorage.setItem("lm68m_sndcat",JSON.stringify(SND.cat));localStorage.setItem("lm68m_sndvol",String(SND.vol));}catch(e){}}
@@ -2184,7 +2184,7 @@ function sndInit(){
  var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
  SND.ctx=new AC();
  SND.master=SND.ctx.createGain?SND.ctx.createGain():SND.ctx.createGainNode();SND.master.gain.value=SND.vol;SND.master.connect(SND.ctx.destination);
- var names=["grk","kon_on","kon_off","rev","air","door_open","door_close"];
+ var names=["grk","kon_on","kon_off","rev","air","door_open","door_close","comp_start","comp_loop","comp_stop","hum_a","hum_b","bpn"];
  for(var i=0;i<names.length;i++)(function(n){
   var x=new XMLHttpRequest();x.open("GET","snd/"+n+".mp3",true);x.responseType="arraybuffer";
   x.onload=function(){try{SND.ctx.decodeAudioData(x.response,function(b){SND.buf[n]=b;},function(){});}catch(e){}};
@@ -2313,9 +2313,36 @@ function mvUpdate(){
    G[n]=(G[n]||0)+g*w*L;R[n]=vk/bk;}}
  for(var n2 in G)mvSet(n2,G[n2],R[n2]);
 }
+/* --- петли из записи депо: компрессор, гудение бандажа в кривых, БПН --- */
+var LOOPLEN={hum_a:10.2,hum_b:5.2,comp_loop:8.98,bpn:11.6},LV={},CRV={on:false,t0:0,t1:0,next:0,n:"hum_a"},CMP={on:false,t:0};
+function lvSet(id,n,gain,rate){
+ var V=LV[id];
+ if(gain<0.002){if(V){setP(V.g.gain,0);if(++V.idle>20){try{V.s.stop(0);}catch(e){}delete LV[id];}}return;}
+ if(V&&V.n!==n){try{V.s.stop(0);}catch(e){}delete LV[id];V=null;}
+ if(!V){var b=SND.buf[n];if(!b)return;var s=SND.ctx.createBufferSource(),g=gainNode();s.buffer=b;s.loop=true;try{s.loopStart=0.1;s.loopEnd=0.1+LOOPLEN[n];}catch(e){}
+  g.gain.value=0;s.connect(g);g.connect(SND.master);var off=0.1+Math.random()*LOOPLEN[n]*0.8;if(s.start)s.start(0,off);else s.noteGrainOn(0,off,b.duration-off);V=LV[id]={s:s,g:g,n:n,idle:0};}
+ V.idle=0;setP(V.g.gain,gain);if(rate)setP(V.s.playbackRate,rate);
+}
+function extraUpdate(){
+ var now=Date.now()/1000,vk=Math.abs(S.v)*3.6,on=SND.on;
+ // компрессор: пуск, работа, останов
+ var mk=!!S.relay["МК"];
+ if(mk!==CMP.on){CMP.on=mk;CMP.t=now;if(on&&SND.cat.comp){if(mk)play("comp_start",0.7,0.5,0,"comp");else play("comp_stop",0.7,0.5,0,"comp");}}
+ lvSet("comp","comp_loop",on&&SND.cat.comp&&mk&&now-CMP.t>1.9?0.55:0,1);
+ // БПН
+ lvSet("bpn","bpn",on&&SND.cat.bpn&&S.relay["БПН"]?(vk<1?0.5:0.25):0,1);
+ // гудение бандажа в кривых: случайные кривые на ходу 4–35 км/ч
+ var g=0;
+ if(on&&SND.cat.curve&&vk>4&&vk<35){
+  if(!CRV.on&&now>CRV.next){CRV.on=true;CRV.t0=now;CRV.t1=now+4+Math.random()*6;CRV.n=Math.random()<0.6?"hum_a":"hum_b";}
+  if(CRV.on){var e=Math.min(1,(now-CRV.t0)/1.2,(CRV.t1-now)/1.5);g=Math.max(0,e)*0.6*Math.min(1,vk/12);
+   if(now>CRV.t1){CRV.on=false;CRV.next=now+25+Math.random()*60;}}
+ }else{if(CRV.on){CRV.on=false;CRV.next=now+10+Math.random()*30;}if(!CRV.next)CRV.next=now+8;}
+ lvSet("curve",CRV.n,g,0.985+vk/1500);
+}
 function motUpdate(){
  if(!SND.ctx)return;
- mvUpdate();
+ mvUpdate();extraUpdate();
  var want=SND.on&&SND.cat.joint;if(!SY){if(!want)return;synInit();if(!SY)return;}
  var T=SY.tgt;
  T.run=0;T.brk=0;T.aq=0;T.aux=0;T.bs=0;T.jv=SND.on&&SND.cat.joint?2.6:0;T.v=Math.abs(S.v);
@@ -2351,7 +2378,7 @@ setInterval(function(){var tg=S.sw["ТП"]?1:0;if(S.tpH===tg)return;var was=S.tp
 function buildSndPanel(){
  var p=$("sndp");p.innerHTML="";
  var x=document.createElement("button");x.className="x";x.textContent="✕";tap(x,function(){p.style.display="none";});p.appendChild(x);
- var h=document.createElement("h2");h.textContent="Звук · запись v4";p.appendChild(h);
+ var h=document.createElement("h2");h.textContent="Звук · запись v5";p.appendChild(h);
  function row(lab,get,set,main){var d=document.createElement("div");d.className="tg"+(main?" main":"");d.innerHTML="<span></span><b></b>";d.firstChild.textContent=lab;
   var sync=function(){var on=get();d.className="tg"+(on?" on":"")+(main?" main":"")+(!main&&!SND.on?" dim":"");d.lastChild.textContent=on?"вкл":"выкл";};
   tap(d,function(){set(!get());sndSave();sndUnlock();syncAll();sndBtn();motUpdate();});p.appendChild(d);return sync;}
@@ -2360,12 +2387,13 @@ function buildSndPanel(){
  var vr=document.createElement("div");vr.className="volrow";vr.innerHTML="<span>Громкость</span>";var r=document.createElement("input");r.type="range";r.min=0;r.max=100;r.value=Math.round(SND.vol*100);
  r.oninput=r.onchange=function(){SND.vol=r.value/100;if(SND.master)SND.master.gain.value=SND.vol;sndSave();};vr.appendChild(r);p.appendChild(vr);
  for(var i=0;i<SNDCAT.length;i++)(function(c){syncs.push(row(c[1],function(){return SND.cat[c[0]];},function(v){SND.cat[c[0]]=v;}));})(SNDCAT[i]);
- var n=document.createElement("div");n.className="note";n.textContent="Ход, разгон и торможение — из записи поездки ЛМ-68М по 7-му маршруту: петли разгона, выбега и торможения на 8–38 км/ч, выровненные по тону редуктора; высота тона следует за скоростью, слой выбирается по току ТЭД. Внутри уже есть стук колёс и дребезг кузова; «Дополнительный стук» добавляет синтезированный. Двери открываются и закрываются вентилями ВД1–ВД3 (выключатели В11, В10, В5 на листе «НВ вспомогательные») или переключателем «Двери открыты».";p.appendChild(n);
+ var n=document.createElement("div");n.className="note";n.textContent="Ход, разгон и торможение — из записи поездки ЛМ-68М по 7-му маршруту: петли разгона, выбега и торможения на 8–38 км/ч, выровненные по тону редуктора; высота тона следует за скоростью, слой выбирается по току ТЭД. Внутри уже есть стук колёс и дребезг кузова; «Дополнительный стук» добавляет синтезированный. Гудение бандажа в кривых, компрессор и БПН — из записи «Трамвайный парк №1» (ЛМ-68М-2423); визг из неё вырезан. Двери открываются и закрываются вентилями ВД1–ВД3 (выключатели В11, В10, В5 на листе «НВ вспомогательные») или переключателем «Двери открыты».";p.appendChild(n);
  function syncAll(){for(var j=0;j<syncs.length;j++)syncs[j]();}
  syncAll();
 }
 window.__syn=function(){return SY;};
 window.__mv=MV;
+window.__lv=LV;window.__crv=CRV;
 
 /* ===================== Интерфейс ===================== */
 function tap(node,fn){node.addEventListener("click",fn,false);}
