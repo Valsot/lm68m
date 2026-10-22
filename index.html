@@ -2246,13 +2246,15 @@ function render(){
 function update(){settle(true);render();refreshInfo();}
 
 /* --- сводка --- */
-var WIRES=[["К",126,400],["17",692,125],["31",93,1000],["2",692,212],["3",692,254],["25",692,347],["4",692,458],["5",692,609],["6",692,779],["7",692,846],["19",692,898],["8",692,992],["20",692,1082],["18",692,1134],["уз",566,1200],["1",692,1366],["11",692,1554],["12",692,1599],["13",692,1642],["14",692,1761],["9",692,1805],["16",692,1848],["15",692,1952]];
+var WIRES=[["К",126,400],["17",693,125],["31",93,1000],["2",693,212],["3",693,254],["25",693,347],["4",693,458],["5",693,609],["6",693,779],["7",693,846],["19",693,898],["8",693,992],["20",693,1082],["18",693,1134],["уз",566,1200],["1",691,1366],["17ж",660,1401],["11",691,1554],["12",691,1599],["13",691,1642],["14",691,1761],["9",690,1805],["16",690,1848],["15",690,1952]];
 var DEVN=[],WRN=[];
+function wireNode(sh,x,y){var k=sh.NODES[x+","+y];if(k!==undefined)return k;var best=null,bd=7;for(var i=0;i<sh.EL.length;i++){var e=sh.EL[i];if(e.k!=="w")continue;var d=99;
+ if(e.x1===e.x2&&y>=Math.min(e.y1,e.y2)-2&&y<=Math.max(e.y1,e.y2)+2)d=Math.abs(x-e.x1);else if(e.y1===e.y2&&x>=Math.min(e.x1,e.x2)-2&&x<=Math.max(e.x1,e.x2)+2)d=Math.abs(y-e.y1);if(d<bd){bd=d;best=e.a;}}return best===null?undefined:best;}
 function buildSumDevs(){var dv=$("devs");dv.innerHTML="";DEVN=[];var seen={},EL=ACT.EL;
  for(var i=0;i<EL.length;i++){var e=EL[i];if((e.k!=="coil"&&e.k!=="mot"&&e.k!=="blk")||seen[e.n])continue;seen[e.n]=1;
   (function(n){var b=document.createElement("span");b.className="dev";b.textContent=n;tap(b,function(){SEL=null;SELR=n;curInfo={n:n};render();showInfo(coilInfo(n));});dv.appendChild(b);DEVN.push({n:n,el:b});})(e.n);}
  $("hwires").style.display=ACT.id==="ctrl"?"":"none";$("wires").style.display=ACT.id==="ctrl"?"":"none";}
-(function(){var w=$("wires");var sh=SH.ctrl;for(var i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i][0];w.appendChild(x);WRN.push({node:sh.NODES[WIRES[i][1]+","+WIRES[i][2]],el:x});}})();
+(function(){var w=$("wires");var sh=SH.ctrl;for(var i=0;i<WIRES.length;i++){var x=document.createElement("span");x.className="wire";x.textContent=WIRES[i][0];w.appendChild(x);WRN.push({node:wireNode(sh,WIRES[i][1],WIRES[i][2]),el:x});}})();
 function nodeV(id,x,y){var f=ext(id,x,y)();return f;}
 function renderSum(){
  if($("main").className.indexOf("sumopen")<0)return;
