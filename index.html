@@ -61,6 +61,7 @@ h2:first-child{margin-top:0}
 #sndp .volrow span{margin-right:10px;color:#b3bfd0}
 #sndp .volrow input{-webkit-box-flex:1;-webkit-flex:1;flex:1}
 #sndp .note{margin-top:10px;font-size:12px;color:#8fa0b6;line-height:1.45}
+#toast{position:absolute;left:50%;top:12px;-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:12;background:#c8323c;color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.5);display:none;max-width:90%;text-align:center}
 #ref .x{float:right;border:0;background:#2b3547;color:#e9edf3;border-radius:5px;padding:4px 10px;font-weight:700;cursor:pointer}
 #ref table{border-collapse:collapse;width:100%;margin-top:8px}
 #ref td{border-bottom:1px solid #262d3a;padding:6px 8px;vertical-align:top}
@@ -186,14 +187,14 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
 var NS="http://www.w3.org/2000/svg";
 var KVPOS=["ТР","Т4","Т3","Т2","Т1","0","М","Х1","Х2","Х3"];
 var KVX={"ТР":228,"Т4":252,"Т3":276,"Т2":300,"Т1":324,"0":365,"М":406,"Х1":430,"Х2":454,"Х3":478};
-var REVX={"Назад":322,"Стоп":365,"Вперёд":408};
+var REVX={"Назад":322,"0":365,"Вперёд":408};
 var KVX2={"ТР":270,"Т4":301,"Т3":333,"Т2":365,"Т1":397,"0":428,"М":467,"Х1":492,"Х2":531,"Х3":563};
-var REVX2={"Назад":365,"Стоп":428,"Вперёд":492};
+var REVX2={"Назад":365,"0":428,"Вперёд":492};
 var FIXP={1:1,9:1,14:1,17:1};
 var TIMED={"РРТ1":1.5,"РОВ":1.0,"РВВ2":1.0,"РВЗ":1.0};
 var SWDEF={"ВУ-1":1,"ВУ-2":1,"ВУ-3":1,"РУМ":1,"В2":1,"В34":1,"В35":1,"В27":1,"В28":1,"ВНЦ":1,"В3":1,"В4":1,"В8":1,"В16":1,"В5":1,"В22":1,"В20":1,"ПБ":1,"ТП":1,"АВ1":1,"АВ2":1,"В17":1,"В47":1,"В19":1,"В21":1,"В6":1,"В24":1,"В2р":1};
 var BTDEF={"ПБ":1};
-var S={kv:"0",rev:"Стоп",revPos:"F",grk:1.0,sw:{},bt:{},
+var S={kv:"0",rev:"0",revPos:"F",grk:1.0,sw:{},bt:{},
  env:{"КС":true,"Двери":false,"Перегрузка":false},
  rp:false,relay:{},tdrop:{},speed:0,tpH:1,grkRate:3.4,press:4.6,ak:true,flash:false,fl:0,v:0,phi:{1:0,2:0},phish:{1:0,2:0},alpha:{1:1,2:1},f0:{1:0,2:0},fd:{1:1/80,2:1/80},rutOn:false,F:0,dist:0};
 
@@ -2382,8 +2383,8 @@ function showInfo(h){if(!h){info.style.display="none";return;}info.innerHTML="<b
 function refreshInfo(){if(curInfo&&info.style.display==="block")showInfo(curInfo.n?coilInfo(curInfo.n):infoFor(curInfo.e));}
 function onSvgTap(ev){
  var t=ev.target,kv=t.getAttribute("data-kv"),rv=t.getAttribute("data-rev"),di=t.getAttribute("data-i");
- if(kv){S.kv=kv;update();return;}
- if(rv){S.rev=rv;update();return;}
+ if(kv){setKv(kv);return;}
+ if(rv){setRev(rv);return;}
  if(di===null)return;
  var sh=ACT,e=sh.EL[+di];
  if(VM){var nd=e.a;if(VMA===null){VMA=nd;$("vm").textContent="Вольтметр: точка 1 = "+(sh.FLO[nd]?"—":fmtV(sh.V[nd])+" В")+". Тапни вторую точку";}
@@ -2391,20 +2392,25 @@ function onSvgTap(ev){
  if(e.k==="sw"||e.k==="bt"){var c=e.c.replace("!","");if(e.k==="sw")S.sw[c]=!S.sw[c];else S.bt[c]=!S.bt[c];}
  SEL=e;SELR=relayOf(e);curInfo={e:e};update();showInfo(infoFor(e));
 }
+/* блокировки: реверсор — только при КВ на «0»; КВ с «0» — только при реверсоре не на «0» */
+var toastT=null;
+function toast(msg){var d=$("toast");if(!d){d=document.createElement("div");d.id="toast";$("main").appendChild(d);}d.textContent=msg;d.style.display="block";clearTimeout(toastT);toastT=setTimeout(function(){d.style.display="none";},2600);}
+function setRev(v){if(v===S.rev)return;if(S.kv!=="0"){toast("Реверсор переключается только при контроллере на «0»");return;}S.rev=v;update();}
+function setKv(v){if(v===S.kv)return;if(S.kv==="0"&&v!=="0"&&S.rev==="0"){toast("Сначала переведи реверсор из «0» в «Вперёд» или «Назад»");return;}S.kv=v;update();}
 function mkBtn(box,txt,fn,cls){var b=document.createElement("button");b.className=cls||"btn";b.textContent=txt;tap(b,fn);box.appendChild(b);return b;}
 var UIB=[],DYN=[];
 var SWNAME={"ОМ":"ОМ (откл. моторов)","ВНЦ":"В1 ВНЦ (выкл. низковольтных цепей)","В3":"В3 Батарея","В46Л":"В46 поворот ←","В46П":"В46 поворот →","В2р":"В2 радио","В26к":"В26 освещение камер","В12к":"В12 освещение камер","В13к":"В13 освещение камер","В14к":"В14 освещение камер","В16к":"В16 освещение камер","В5":"В5 Управление-2"};
 var BTNAME={"ПБ":"ПБ (педаль)","СЕКВ":"Секвенция","ВРП":"Возврат РП","КН7":"КН7","ПП":"ПП (песок)","Авар":"Авар. открытие дверей","Кн6":"Кн6 (дальний свет)"};
 function buildUI(){
- var i,rv=["Назад","Стоп","Вперёд"];
- for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn($("rev"),v,function(){S.rev=v;update();}),f:function(){return S.rev===v;}});})(rv[i]);
- for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn($("kv"),v,function(){S.kv=v;update();}),f:function(){return S.kv===v;}});})(KVPOS[i]);
+ var i,rv=["Назад","0","Вперёд"];
+ for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn($("rev"),v,function(){setRev(v);}),f:function(){return S.rev===v;}});})(rv[i]);
+ for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn($("kv"),v,function(){setKv(v);}),f:function(){return S.kv===v;}});})(KVPOS[i]);
  tg($("env"),S.env,{"КС":"Напряжение в КС","Двери":"Двери открыты","Перегрузка":"Перегрузка (РП)"},UIB);
  var g=$("grk");for(i=1;i<=17;i++){var s=document.createElement("span");s.textContent=i;g.appendChild(s);}
  var q=$("quick");
- for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){S.rev=v;update();}),f:function(){return S.rev===v;},rv:true});})(rv[i]);
+ for(i=0;i<rv.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){setRev(v);}),f:function(){return S.rev===v;},rv:true});})(rv[i]);
  q.appendChild(document.createElement("br"));
- for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){S.kv=v;update();}),f:function(){return S.kv===v;}});})(KVPOS[i]);
+ for(i=0;i<KVPOS.length;i++)(function(v){UIB.push({n:mkBtn(q,v,function(){setKv(v);}),f:function(){return S.kv===v;}});})(KVPOS[i]);
  var tb=$("tabs");
  var SHORT={"ctrl":"Управление","aux":"Вспомогательные","lv":"НВ вспомог.","pow":"Силовая"};
  var TORD=["pow","ctrl","aux","lv"];
