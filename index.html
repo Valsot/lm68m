@@ -116,6 +116,7 @@ svg.img .fl.on.rv{-webkit-animation-name:rwi;animation-name:rwi}
  #menuBtn{display:inline-block}
  #side{position:absolute;left:0;top:0;bottom:0;width:260px;z-index:5;-webkit-transform:translateX(-105%);transform:translateX(-105%);-webkit-transition:-webkit-transform .2s;transition:transform .2s;box-shadow:4px 0 20px rgba(0,0,0,.5)}
  #side.open{-webkit-transform:none;transform:none}
+ #main.sideopen #view{padding-left:262px}
  #info{left:6px;right:6px;bottom:6px;width:auto;max-height:50%}
  #grk{-webkit-box-ordinal-group:3;-webkit-order:3;order:3;width:100%;min-width:0;-webkit-flex-basis:100%;flex-basis:100%;margin:4px 0 0}
  #status{font-size:11px;white-space:nowrap;width:auto;-webkit-flex:1;flex:1;min-width:0}
@@ -2028,7 +2029,7 @@ function flowFrame(){
  var dpr=Math.min(2,window.devicePixelRatio||1),w=view.clientWidth,h=view.clientHeight;
  if(w!==flW||h!==flH||flc._d!==dpr){flW=w;flH=h;flc._d=dpr;flc.width=Math.round(w*dpr);flc.height=Math.round(h*dpr);flc.style.width=w+"px";flc.style.height=h+"px";}
  flc.style.left=view.offsetLeft+"px";flc.style.top=view.offsetTop+"px";
- var Z=ACT.Z||1,ox=-view.scrollLeft,oy=-view.scrollTop,img=!!ACT.img,P=img?22:14,r=(img?8.5:4.2)/2*Z;
+ var Z=ACT.Z||1,vr=view.getBoundingClientRect(),sr2=ACT.svg.getBoundingClientRect(),ox=sr2.left-vr.left-(view.clientLeft||0),oy=sr2.top-vr.top-(view.clientTop||0),img=!!ACT.img,P=img?22:14,r=(img?8.5:4.2)/2*Z;
  flx.setTransform(dpr,0,0,dpr,0,0);flx.clearRect(0,0,w,h);flOn=true;
  var t=(window.performance&&performance.now?performance.now():Date.now())/1000,i,f,pad=r+2;
  if(SPINS.length){flx.strokeStyle="#f2d33d";flx.lineCap="round";for(i=0;i<SPINS.length;i++){var q=SPINS[i][0],ang=(SPINS[i][1]*t*6.2832)%6.2832-1.5708;flx.lineWidth=q[3]*Z;flx.beginPath();flx.arc(q[0]*Z+ox,q[1]*Z+oy,q[2]*Z,ang,ang+1.0472);flx.stroke();}}
@@ -2472,8 +2473,9 @@ tap($("bRef"),function(){var r=$("ref");if(!r.firstChild)buildRef();r.style.disp
 tap($("bSum"),function(){setSum($("main").className.indexOf("sumopen")<0);});
 
 /* --- кнопки сверху --- */
-tap($("menuBtn"),function(){var s=$("side");s.className=s.className==="open"?"":"open";});
-tap(view,function(ev){var s=$("side");if(s.className==="open")s.className="";if(window.innerWidth<=760&&$("main").className.indexOf("sumopen")>=0)setSum(false);onSvgTap(ev);});
+function sideSync(){var o=$("side").className==="open",m=$("main"),c=m.className.replace(/ ?sideopen/g,"");m.className=o?c+" sideopen":c;}
+tap($("menuBtn"),function(){var s=$("side");s.className=s.className==="open"?"":"open";sideSync();});
+tap(view,function(ev){var s=$("side");if(s.className==="open"&&ev.target===view){s.className="";sideSync();}if(window.innerWidth<=760&&$("main").className.indexOf("sumopen")>=0)setSum(false);onSvgTap(ev);});
 tap($("bVM"),function(){VM=!VM;VMA=null;this.className="tb"+(VM?" on":"");$("vm").style.display=VM?"block":"none";$("vm").textContent="Вольтметр: тапни первую точку схемы";});
 tap($("bEl"),function(){ELEC=!ELEC;this.textContent=ELEC?"Электроны: −→+":"Ток: +→−";paint();});
 var anim=true;$("bAn").className="tb on";
@@ -2492,7 +2494,7 @@ tap($("bUI"),function(){showUI=!showUI;this.className="tb"+(showUI?" on":"");for
  $("grkr").addEventListener("input",gset,false);$("grkr").addEventListener("change",gset,false);
  tap($("grkd"),function(){S.grkRate=3.4;try{localStorage.removeItem("lm68m_grk");}catch(e){}gsync();});
  var row=document.createElement("div");row.className="row2";box.appendChild(row);
- mkBtn(row,"Справка",function(){$("side").className="";$("bRef").click();});mkBtn(row,"Вольтметр",function(){$("side").className="";$("bVM").click();});mkBtn(row,"Масштаб ⤢",function(){$("side").className="";$("zf").click();});})();
+ mkBtn(row,"Справка",function(){$("side").className="";sideSync();$("bRef").click();});mkBtn(row,"Вольтметр",function(){$("side").className="";sideSync();$("bVM").click();});mkBtn(row,"Масштаб ⤢",function(){$("side").className="";sideSync();$("zf").click();});})();
 
 /* --- масштаб --- */
 function fitZ(){return Math.max(0.2,(view.clientWidth-4)/ACT.W);}
